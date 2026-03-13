@@ -308,6 +308,11 @@ Formát: čas | baterie% | FVE výroba | cena | oblačnost zítra → zvolený m
 3. Opotřebení baterie ~0,6 Kč/kWh — zohledni při rozhodování
 4. Vždy aktivní jen JEDEN mód (nebo DEFAULT)
 5. Mysli dopředu — zvaž zbytek dne i zítřek
+6. SAVING_TO_BATTERY (nabíjení ze sítě): Před aktivací vždy zkontroluj nadcházející hodiny.
+   Pokud v příštích 6 hodinách existuje hodina s cenou alespoň o 0,5 Kč/kWh nižší než je teď,
+   POČKEJ na ni — nastav DEFAULT a nech baterii na příští levnější nabíjení.
+   Nabíjej teď pouze pokud: (a) baterie je kriticky nízká (<25%) A zítra bude zataženo,
+   nebo (b) aktuální cena je již nejnižší v příštích 6 hodinách.
 
 ## Dostupné módy (POUZE tyto 4 + DEFAULT)
 - SELLING_INSTEAD_OF_BATTERY_CHARGE → výroba FVE do sítě místo nabíjení (dopoledne, vysoké ceny > {VYKUP_PRAH_CZK} Kč)
