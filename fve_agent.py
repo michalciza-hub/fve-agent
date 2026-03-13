@@ -33,13 +33,13 @@ TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 LATITUDE  = float(os.environ.get("FVE_LAT", "50.0755"))
 LONGITUDE = float(os.environ.get("FVE_LON", "14.4378"))
 
-VYKUP_PRAH_CZK   = 0.45   # Kč/kWh — pod touto cenou se prodej do sítě nevyplatí
-BATERIE_MIN_PCT  = 15     # % — pod touto hodnotou zastav prodej z baterie
-CENA_DRAHA_CZK   = 3.0    # Kč/kWh — nad touto cenou považujeme elektřinu za drahou
-CENA_LEVNA_CZK   = 1.0    # Kč/kWh — pod touto cenou považujeme elektřinu za levnou
+VYKUP_PRAH_CZK   = 1.5    # Kč/kWh — pod touto cenou se prodej do sítě nevyplatí (opotřebení bat. ~0.6 + marže)
+BATERIE_MIN_PCT  = 20     # % — pod touto hodnotou zastav prodej z baterie
+CENA_DRAHA_CZK   = 3.5    # Kč/kWh — nad touto cenou považujeme elektřinu za drahou (špička)
+CENA_LEVNA_CZK   = 0.5    # Kč/kWh — pod touto cenou považujeme elektřinu za levnou (přebytek FVE)
+BATERIE_OPOTREBENI_CZK = 0.6  # Kč/kWh — náklad na cyklus baterie
 
 MODY = {
-    "SELLING_FROM_BATTERY":              "🟡 Prodej z baterie do sítě",
     "SELLING_INSTEAD_OF_BATTERY_CHARGE": "🟡 Prodej do sítě místo nabíjení",
     "USING_FROM_GRID_INSTEAD_OF_BATTERY":"🩵 Šetření energie v baterii",
     "SAVING_TO_BATTERY":                 "🩵 Nabíjení baterie ze sítě",
@@ -266,14 +266,8 @@ def reaktivni_kontrola(stav: dict | None, ceny: dict | None) -> tuple[str, str] 
         return "BLOCKING_GRID_OVERFLOW", f"Záporná cena {cena} Kč/kWh — blokuji přetoky"
 
     # Cena pod prahem výkupu a prodáváme → zastav
-    if cena is not None and cena < VYKUP_PRAH_CZK and aktivni in (
-        "SELLING_FROM_BATTERY", "SELLING_INSTEAD_OF_BATTERY_CHARGE"
-    ):
+    if cena is not None and cena < VYKUP_PRAH_CZK and aktivni == "SELLING_INSTEAD_OF_BATTERY_CHARGE":
         return "DEFAULT", f"Cena {cena} Kč/kWh pod prahem výkupu {VYKUP_PRAH_CZK} — zastavuji prodej"
-
-    # Kriticky nízká baterie a prodáváme → zastav
-    if bat <= BATERIE_MIN_PCT and aktivni == "SELLING_FROM_BATTERY":
-        return "DEFAULT", f"Baterie kriticky nízká ({bat}%) — zastavuji prodej z baterie"
 
     return None
 
@@ -301,20 +295,18 @@ Instalace: FVE 10 kWp, baterie 10 kWh využitelných, roční spotřeba domácno
 {json.dumps(ceny, ensure_ascii=False, indent=2) if ceny else "Nedostupné"}
 
 ## Pevná pravidla
-1. Prodej se vyplatí POUZE pokud spotová cena > {VYKUP_PRAH_CZK} Kč/kWh
+1. NIKDY nepoužívej mód SELLING_FROM_BATTERY — prodej z baterie je zakázán
 2. Při záporné ceně VŽDY nastav BLOCKING_GRID_OVERFLOW
-3. Neprodávej z baterie pokud nabití < {BATERIE_MIN_PCT}%
-4. Opotřebení baterie ~0,6 Kč/kWh — zohledni při prodeji z baterie
-5. Vždy aktivní jen JEDEN mód (nebo DEFAULT)
-6. Mysli dopředu — zvaž zbytek dne i zítřek
+3. Opotřebení baterie ~0,6 Kč/kWh — zohledni při rozhodování
+4. Vždy aktivní jen JEDEN mód (nebo DEFAULT)
+5. Mysli dopředu — zvaž zbytek dne i zítřek
 
-## Dostupné módy
-- SELLING_FROM_BATTERY              → prodej z baterie (vysoké ceny, baterie nabitá, večer malá spotřeba)
-- SELLING_INSTEAD_OF_BATTERY_CHARGE → výroba FVE do sítě místo nabíjení (dopoledne, vysoké ceny)
+## Dostupné módy (POUZE tyto 4 + DEFAULT)
+- SELLING_INSTEAD_OF_BATTERY_CHARGE → výroba FVE do sítě místo nabíjení (dopoledne, vysoké ceny > {VYKUP_PRAH_CZK} Kč)
 - USING_FROM_GRID_INSTEAD_OF_BATTERY → šetři baterii, ber ze sítě (cena sítě < opotřebení baterie)
-- SAVING_TO_BATTERY                 → nabij baterii z levné sítě (nízké ceny + zítra zataženo)
-- BLOCKING_GRID_OVERFLOW            → zákaz přetoků (záporné nebo nízké ceny pod {VYKUP_PRAH_CZK} Kč)
-- DEFAULT                           → výchozí chování FVE
+- SAVING_TO_BATTERY                 → nabij baterii z levné sítě (nízké ceny + zítra zataženo/málo slunce)
+- BLOCKING_GRID_OVERFLOW            → zákaz přetoků (záporné nebo velmi nízké ceny)
+- DEFAULT                           → výchozí chování FVE (standardní situace)
 
 Odpověz POUZE tímto JSON, bez dalšího textu:
 {{"mod": "NÁZEV_MÓDU", "duvod": "Stručně česky max 120 znaků"}}"""
