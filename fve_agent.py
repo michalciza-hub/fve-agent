@@ -19,8 +19,10 @@ PORTAL_URL   = "https://proteus.deltagreen.cz"
 API_URL      = "https://proteus.deltagreen.cz/api/trpc/inverters.controls.updateManualControl?batch=1"
 INVERTER_ID  = "tgqgq7sjswuw1renbowwddlf"
 
-PORTAL_USERNAME  = os.environ["PORTAL_USERNAME"]
-PORTAL_PASSWORD  = os.environ["PORTAL_PASSWORD"]
+PORTAL_USERNAME  = os.environ.get("PORTAL_USERNAME", "")
+PORTAL_PASSWORD  = os.environ.get("PORTAL_PASSWORD", "")
+PORTAL_SESSION   = os.environ["PORTAL_SESSION"]
+PORTAL_CSRF      = os.environ["PORTAL_CSRF"]
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 TELEGRAM_TOKEN   = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
@@ -67,28 +69,29 @@ def telegram(zprava: str, tichy: bool = False):
 # ============================================================
 
 def prihlasit_se() -> requests.Session | None:
-    print("🔐 Přihlašuji se...")
+    print("🔐 Přihlašuji se (cookie)...")
     session = requests.Session()
     session.headers.update({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Content-Type": "application/json",
         "Origin": PORTAL_URL,
         "Referer": PORTAL_URL,
+        "x-csrf-token": PORTAL_CSRF,
     })
+    session.cookies.set("proteus_session", PORTAL_SESSION, domain="proteus.deltagreen.cz")
+    session.cookies.set("proteus_csrf", PORTAL_CSRF, domain="proteus.deltagreen.cz")
+    # Ověření — zkusíme jednoduchý request
     try:
-        resp = session.post(
-            f"{PORTAL_URL}/api/trpc/auth.login?batch=1",
-            json=[{"json": {"email": PORTAL_USERNAME, "password": PORTAL_PASSWORD}}],
-            timeout=15,
-        )
+        resp = session.get(f"{PORTAL_URL}/api/trpc/households.getAll?batch=1",
+                           params={"input": "[{}]"}, timeout=10)
         if resp.status_code == 200:
-            print("   ✅ Přihlášeno")
+            print("   ✅ Cookie session OK")
             return session
-        print(f"   ❌ Selhalo: {resp.status_code}")
-        return None
+        print(f"   ⚠️ Status {resp.status_code} — zkouším pokračovat")
+        return session  # Vrátíme session i tak, může fungovat pro jiné endpointy
     except Exception as e:
-        print(f"   ❌ Výjimka: {e}")
-        return None
+        print(f"   ⚠️ Ověření selhalo: {e} — zkouším pokračovat")
+        return session
 
 # ============================================================
 # STAV FVE
