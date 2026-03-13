@@ -107,7 +107,7 @@ def ziskat_stav_fve(session: requests.Session) -> dict | None:
             timeout=15,
         )
         if resp.status_code != 200:
-            print(f"   ⚠️ Status: {resp.status_code}")
+            print(f"   ⚠️ Status: {resp.status_code} | Raw: {resp.text[:300]}")
             return None
 
         # Odpověď je superjson stream — hledáme objekt s daty (index 2)
