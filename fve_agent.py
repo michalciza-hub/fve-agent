@@ -376,9 +376,7 @@ def nastavit_mod(session: requests.Session, mod: str) -> bool:
     # Vypni všechny ostatní módy
     for typ in [m for m in MODY if m not in ("DEFAULT", mod)]:
         try:
-            session.post(API_URL, json=[{
-                "json": {"type": typ, "inverterId": INVERTER_ID, "state": "DISABLED"}
-            }], timeout=10)
+            session.post(API_URL, json={"0": {"json": {"type": typ, "inverterId": INVERTER_ID, "state": "DISABLED"}}}, timeout=10)
         except:
             pass
 
@@ -389,7 +387,7 @@ def nastavit_mod(session: requests.Session, mod: str) -> bool:
     try:
         resp = session.post(
             API_URL,
-            json=[{"json": {"type": mod, "inverterId": INVERTER_ID, "state": "ENABLED"}}],
+            json={"0": {"json": {"type": mod, "inverterId": INVERTER_ID, "state": "ENABLED"}}},
             timeout=15,
         )
         print(f"   Status: {resp.status_code} | Response: {resp.text[:300]}")
