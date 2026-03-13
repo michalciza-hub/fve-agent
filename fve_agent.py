@@ -11,6 +11,9 @@ import os
 import json
 import requests
 from datetime import datetime, date
+from zoneinfo import ZoneInfo
+
+TZ = ZoneInfo("Europe/Prague")
 
 # ============================================================
 # KONFIGURACE
@@ -169,7 +172,7 @@ def ziskat_pocasi() -> dict | None:
             timeout=10,
         )
         data = resp.json()
-        hodina = datetime.now().hour
+        hodina = datetime.now(TZ).hour
         dnes = {
             "oblacnost":    data["daily"]["cloud_cover_mean"][0],
             "slunce_h":     round(data["daily"]["sunshine_duration"][0] / 3600, 1),
@@ -192,7 +195,57 @@ def ziskat_pocasi() -> dict | None:
         return None
 
 # ============================================================
-# CENY ELEKTŘINY (OTE-CR)
+# CENY ELEKTŘINY (spotovaelektrina.cz — 15min intervaly)
+# ============================================================
+
+def ziskat_ceny() -> dict | None:
+    print("💰 Načítám ceny spotovaelektrina.cz...")
+    try:
+        resp = requests.get(
+            "https://spotovaelektrina.cz/api/v1/price/get-prices-json-qh",
+            timeout=10,
+        )
+        data = resp.json()
+        now = datetime.now(TZ)
+        h = now.hour
+        m = now.minute
+
+        # Ceny jsou v Kč/MWh (priceCZK: 2596 = 2.596 Kč/kWh) — dělíme 1000
+        dnes   = [round(p["priceCZK"] / 1000, 3) for p in data["hoursToday"]]
+        zitrek = [round(p["priceCZK"] / 1000, 3) for p in data["hoursTomorrow"]]
+
+        # Aktuální čtvrthodinový index
+        idx = h * 4 + m // 15
+        aktualni = dnes[idx] if idx < len(dnes) else dnes[-1]
+
+        # Průměrné hodinové ceny (pro přehled a denní plán)
+        czk_hod = [round(sum(dnes[i*4:(i+1)*4]) / 4, 2) for i in range(24)]
+
+        # Zbytek dne od aktuálního indexu (15min granularita)
+        zbytek_15min = dnes[idx:]
+
+        # Hodiny s drahými/levnými/zápornými cenami
+        hodiny_drahe   = [i for i, c in enumerate(czk_hod) if c >= CENA_DRAHA_CZK]
+        hodiny_levne   = [i for i, c in enumerate(czk_hod) if c <= CENA_LEVNA_CZK]
+        hodiny_zaporne = [i for i, c in enumerate(czk_hod) if c < 0]
+
+        print(f"   Aktuální: {aktualni} Kč/kWh | Min: {min(dnes):.2f} | Max: {max(dnes):.2f}")
+        return {
+            "aktualni":       aktualni,
+            "prumer":         round(sum(czk_hod) / len(czk_hod), 2),
+            "max":            max(dnes),
+            "min":            min(dnes),
+            "vsechny_15min":  dnes,
+            "zitrek_15min":   zitrek,
+            "prumer_zitrek":  round(sum(zitrek) / len(zitrek), 2) if zitrek else None,
+            "zbytek_15min":   zbytek_15min,
+            "hodiny_drahe":   hodiny_drahe,
+            "hodiny_levne":   hodiny_levne,
+            "hodiny_zaporne": hodiny_zaporne,
+        }
+    except Exception as e:
+        print(f"   ⚠️ Chyba: {e}")
+        return None
 # ============================================================
 
 def ziskat_ceny() -> dict | None:
@@ -211,7 +264,7 @@ def ziskat_ceny() -> dict | None:
 
         kurz = 25
         czk = [round(e * kurz / 1000, 3) for e in eur_mwh]
-        h = datetime.now().hour
+        h = datetime.now(TZ).hour
 
         print(f"   Aktuální: {czk[h] if h < len(czk) else '?'} Kč/kWh | Min: {min(czk):.3f} | Max: {max(czk):.3f}")
         return {
@@ -264,8 +317,8 @@ def reaktivni_kontrola(stav: dict | None, ceny: dict | None) -> tuple[str, str] 
 
 def claude_rozhodne(stav: dict | None, pocasi: dict | None, ceny: dict | None) -> tuple[str, str]:
     print("🧠 Ptám se Claude AI...")
-    cas = datetime.now().strftime("%H:%M")
-    hodina = datetime.now().hour
+    cas = datetime.now(TZ).strftime("%H:%M")
+    hodina = datetime.now(TZ).hour
 
     prompt = f"""Jsi AI agent řídící fotovoltaickou elektrárnu (FVE) s baterií v České republice.
 Instalace: FVE 10 kWp, baterie 10 kWh využitelných, roční spotřeba domácnosti ~11 MWh.
@@ -343,7 +396,7 @@ def denni_plan(pocasi: dict | None, ceny: dict | None):
 
     z = pocasi.get("zitrek", {}) if pocasi else {}
     zprava = (
-        f"📅 <b>FVE Denní plán — {datetime.now().strftime('%d.%m.%Y')}</b>\n\n"
+        f"📅 <b>FVE Denní plán — {datetime.now(TZ).strftime('%d.%m.%Y')}</b>\n\n"
         f"💰 <b>Ceny elektřiny dnes:</b>\n"
         f"   Průměr: <b>{ceny['prumer']} Kč/kWh</b>\n"
         f"   Max: <b>{ceny['max']} Kč/kWh</b>  |  Min: <b>{ceny['min']} Kč/kWh</b>\n\n"
@@ -393,7 +446,7 @@ def nastavit_mod(session: requests.Session, mod: str) -> bool:
 # ============================================================
 
 def main():
-    now    = datetime.now()
+    now    = datetime.now(TZ)
     cas    = now.strftime("%d.%m.%Y %H:%M")
     hodina = now.hour
     minuta = now.minute
