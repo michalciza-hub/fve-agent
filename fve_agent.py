@@ -1,0 +1,468 @@
+"""
+FVE AI Agent - proteus.deltagreen.cz
+=====================================
+Třívrstvá logika:
+  - Každých 5 minut: rychlá reaktivní kontrola (bez AI)
+  - Každou hodinu:   plné přehodnocení s Claude AI
+  - Každý den 14:30: denní plán po zveřejnění cen OTE
+"""
+
+import os
+import json
+import requests
+from datetime import datetime, date
+
+# ============================================================
+# KONFIGURACE
+# ============================================================
+PORTAL_URL   = "https://proteus.deltagreen.cz"
+API_URL      = "https://proteus.deltagreen.cz/api/trpc/inverters.controls.updateManualControl?batch=1"
+INVERTER_ID  = "tgqgq7sjswuw1renbowwddlf"
+
+PORTAL_USERNAME  = os.environ["PORTAL_USERNAME"]
+PORTAL_PASSWORD  = os.environ["PORTAL_PASSWORD"]
+ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+TELEGRAM_TOKEN   = os.environ["TELEGRAM_TOKEN"]
+TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+
+LATITUDE  = float(os.environ.get("FVE_LAT", "50.0755"))
+LONGITUDE = float(os.environ.get("FVE_LON", "14.4378"))
+
+VYKUP_PRAH_CZK   = 0.45   # Kč/kWh — pod touto cenou se prodej do sítě nevyplatí
+BATERIE_MIN_PCT  = 15     # % — pod touto hodnotou zastav prodej z baterie
+CENA_DRAHA_CZK   = 3.0    # Kč/kWh — nad touto cenou považujeme elektřinu za drahou
+CENA_LEVNA_CZK   = 1.0    # Kč/kWh — pod touto cenou považujeme elektřinu za levnou
+
+MODY = {
+    "SELLING_FROM_BATTERY":              "🟡 Prodej z baterie do sítě",
+    "SELLING_INSTEAD_OF_BATTERY_CHARGE": "🟡 Prodej do sítě místo nabíjení",
+    "USING_FROM_GRID_INSTEAD_OF_BATTERY":"🩵 Šetření energie v baterii",
+    "SAVING_TO_BATTERY":                 "🩵 Nabíjení baterie ze sítě",
+    "BLOCKING_GRID_OVERFLOW":            "🔴 Zákaz přetoků",
+    "DEFAULT":                           "⚪ Výchozí mód",
+}
+
+# ============================================================
+# TELEGRAM
+# ============================================================
+
+def telegram(zprava: str, tichy: bool = False):
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": zprava,
+                "parse_mode": "HTML",
+                "disable_notification": tichy,
+            },
+            timeout=10,
+        )
+        print("📱 Telegram: odesláno")
+    except Exception as e:
+        print(f"📱 Telegram chyba: {e}")
+
+# ============================================================
+# PŘIHLÁŠENÍ
+# ============================================================
+
+def prihlasit_se() -> requests.Session | None:
+    print("🔐 Přihlašuji se...")
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Content-Type": "application/json",
+        "Origin": PORTAL_URL,
+        "Referer": PORTAL_URL,
+    })
+    try:
+        resp = session.post(
+            f"{PORTAL_URL}/api/trpc/auth.login?batch=1",
+            json=[{"json": {"email": PORTAL_USERNAME, "password": PORTAL_PASSWORD}}],
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            print("   ✅ Přihlášeno")
+            return session
+        print(f"   ❌ Selhalo: {resp.status_code}")
+        return None
+    except Exception as e:
+        print(f"   ❌ Výjimka: {e}")
+        return None
+
+# ============================================================
+# STAV FVE
+# ============================================================
+
+def ziskat_stav_fve(session: requests.Session) -> dict | None:
+    print("📊 Načítám stav FVE...")
+    try:
+        resp = session.get(
+            f"{PORTAL_URL}/api/trpc/inverters.lastState?batch=1",
+            params={"input": json.dumps([{"json": {"inverterId": INVERTER_ID}}])},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            print(f"   ⚠️ Status: {resp.status_code}")
+            return None
+
+        # Odpověď je superjson stream — hledáme objekt s daty (index 2)
+        # Formát: více JSON objektů za sebou oddělených newline
+        raw = resp.text
+        data = None
+        for chunk in raw.strip().split("\n"):
+            try:
+                obj = json.loads(chunk)
+                # Hledáme chunk s "json": [2, 0, [...]] — to jsou reálná data
+                j = obj.get("json", [])
+                if isinstance(j, list) and len(j) >= 3 and j[0] == 2:
+                    data = j[2][0][0]
+                    break
+            except:
+                continue
+
+        if not data:
+            print("   ⚠️ Nepodařilo se naparsovat data")
+            return None
+
+        # Skutečné názvy polí z API (ověřeno z Network Response):
+        # batteryStateOfCharge, photovoltaicPower, consumptionPower, gridPower
+        # gridPower > 0 = odběr ze sítě, < 0 = přetok do sítě
+        stav = {
+            "baterie_procent": data.get("batteryStateOfCharge", 0),
+            "vyroba_w":        data.get("photovoltaicPower", 0),
+            "spotreba_w":      data.get("consumptionPower", 0),
+            "odber_site_w":    data.get("gridPower", 0),       # + = odběr, - = přetok
+            "baterie_w":       data.get("batteryPower", 0),    # výkon baterie (+ nabíjení)
+            "aktivni_mod":     data.get("statusActiveControl") or "DEFAULT",
+        }
+        pretok = max(0, -stav["odber_site_w"])
+        odber  = max(0,  stav["odber_site_w"])
+        print(f"   🔋 {stav['baterie_procent']}% | ☀️ {stav['vyroba_w']}W | 🏠 {stav['spotreba_w']}W | 🔌 odběr {odber}W | ↑ přetok {pretok}W")
+        return stav
+    except Exception as e:
+        print(f"   ⚠️ Chyba: {e}")
+        return None
+
+# ============================================================
+# POČASÍ (Open-Meteo)
+# ============================================================
+
+def ziskat_pocasi() -> dict | None:
+    print("🌤️ Načítám počasí...")
+    try:
+        resp = requests.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude":     LATITUDE,
+                "longitude":    LONGITUDE,
+                "hourly":       "cloud_cover,direct_radiation",
+                "daily":        "cloud_cover_mean,sunshine_duration,precipitation_sum",
+                "timezone":     "Europe/Prague",
+                "forecast_days": 2,
+            },
+            timeout=10,
+        )
+        data = resp.json()
+        hodina = datetime.now().hour
+        dnes = {
+            "oblacnost":    data["daily"]["cloud_cover_mean"][0],
+            "slunce_h":     round(data["daily"]["sunshine_duration"][0] / 3600, 1),
+            "srazky_mm":    data["daily"]["precipitation_sum"][0],
+        }
+        zitrek = {
+            "oblacnost":    data["daily"]["cloud_cover_mean"][1],
+            "slunce_h":     round(data["daily"]["sunshine_duration"][1] / 3600, 1),
+            "srazky_mm":    data["daily"]["precipitation_sum"][1],
+        }
+        print(f"   Dnes: {dnes['oblacnost']}% oblak, {dnes['slunce_h']}h | Zítra: {zitrek['oblacnost']}% oblak, {zitrek['slunce_h']}h")
+        return {
+            "dnes":   dnes,
+            "zitrek": zitrek,
+            "aktualni_radiace_wm2": data["hourly"]["direct_radiation"][hodina] if hodina < 48 else 0,
+            "radiace_zbytek":       data["hourly"]["direct_radiation"][hodina:hodina + 12],
+        }
+    except Exception as e:
+        print(f"   ⚠️ Chyba: {e}")
+        return None
+
+# ============================================================
+# CENY ELEKTŘINY (OTE-CR)
+# ============================================================
+
+def ziskat_ceny() -> dict | None:
+    print("💰 Načítám ceny OTE...")
+    try:
+        resp = requests.get(
+            "https://www.ote-cr.cz/cs/kratkodobe-trhy/elektrina/denni-trh/@@chart-data",
+            params={"report_date": date.today().strftime("%Y-%m-%d"), "type": "1H"},
+            headers={"Accept": "application/json"},
+            timeout=10,
+        )
+        body = resp.json().get("data", {}).get("dataLine", [{}])[0].get("point", [])
+        eur_mwh = [float(p.get("y", 0)) for p in body]
+        if not eur_mwh:
+            return None
+
+        kurz = 25
+        czk = [round(e * kurz / 1000, 3) for e in eur_mwh]
+        h = datetime.now().hour
+
+        print(f"   Aktuální: {czk[h] if h < len(czk) else '?'} Kč/kWh | Min: {min(czk):.3f} | Max: {max(czk):.3f}")
+        return {
+            "aktualni":       czk[h] if h < len(czk) else None,
+            "prumer":         round(sum(czk) / len(czk), 3),
+            "max":            max(czk),
+            "min":            min(czk),
+            "vsechny":        czk,
+            "zbytek":         czk[h:],
+            "hodiny_drahe":   [i for i, c in enumerate(czk) if c >= CENA_DRAHA_CZK],
+            "hodiny_levne":   [i for i, c in enumerate(czk) if c <= CENA_LEVNA_CZK],
+            "hodiny_zaporne": [i for i, c in enumerate(czk) if c < 0],
+        }
+    except Exception as e:
+        print(f"   ⚠️ Chyba: {e}")
+        return None
+
+# ============================================================
+# REAKTIVNÍ KONTROLA — rychlá pravidla bez AI
+# ============================================================
+
+def reaktivni_kontrola(stav: dict | None, ceny: dict | None) -> tuple[str, str] | None:
+    """Vrátí (mod, duvod) pokud je třeba okamžitě zasáhnout, jinak None."""
+    if not stav:
+        return None
+
+    bat      = stav["baterie_procent"]
+    aktivni  = stav.get("aktivni_mod", "DEFAULT")
+    cena     = ceny["aktualni"] if ceny and ceny.get("aktualni") is not None else None
+
+    # Záporná cena → zákaz přetoků
+    if cena is not None and cena < 0 and aktivni != "BLOCKING_GRID_OVERFLOW":
+        return "BLOCKING_GRID_OVERFLOW", f"Záporná cena {cena} Kč/kWh — blokuji přetoky"
+
+    # Cena pod prahem výkupu a prodáváme → zastav
+    if cena is not None and cena < VYKUP_PRAH_CZK and aktivni in (
+        "SELLING_FROM_BATTERY", "SELLING_INSTEAD_OF_BATTERY_CHARGE"
+    ):
+        return "DEFAULT", f"Cena {cena} Kč/kWh pod prahem výkupu {VYKUP_PRAH_CZK} — zastavuji prodej"
+
+    # Kriticky nízká baterie a prodáváme → zastav
+    if bat <= BATERIE_MIN_PCT and aktivni == "SELLING_FROM_BATTERY":
+        return "DEFAULT", f"Baterie kriticky nízká ({bat}%) — zastavuji prodej z baterie"
+
+    return None
+
+# ============================================================
+# CLAUDE AI ROZHODOVÁNÍ
+# ============================================================
+
+def claude_rozhodne(stav: dict | None, pocasi: dict | None, ceny: dict | None) -> tuple[str, str]:
+    print("🧠 Ptám se Claude AI...")
+    cas = datetime.now().strftime("%H:%M")
+    hodina = datetime.now().hour
+
+    prompt = f"""Jsi AI agent řídící fotovoltaickou elektrárnu (FVE) s baterií v České republice.
+Instalace: FVE 10 kWp, baterie 10 kWh využitelných, roční spotřeba domácnosti ~11 MWh.
+
+## Aktuální čas: {cas} (hodina {hodina})
+
+## Stav FVE a baterie
+{json.dumps(stav, ensure_ascii=False, indent=2) if stav else "Nedostupné"}
+
+## Počasí
+{json.dumps(pocasi, ensure_ascii=False, indent=2) if pocasi else "Nedostupné"}
+
+## Spotové ceny elektřiny OTE (Kč/kWh)
+{json.dumps(ceny, ensure_ascii=False, indent=2) if ceny else "Nedostupné"}
+
+## Pevná pravidla
+1. Prodej se vyplatí POUZE pokud spotová cena > {VYKUP_PRAH_CZK} Kč/kWh
+2. Při záporné ceně VŽDY nastav BLOCKING_GRID_OVERFLOW
+3. Neprodávej z baterie pokud nabití < {BATERIE_MIN_PCT}%
+4. Opotřebení baterie ~0,6 Kč/kWh — zohledni při prodeji z baterie
+5. Vždy aktivní jen JEDEN mód (nebo DEFAULT)
+6. Mysli dopředu — zvaž zbytek dne i zítřek
+
+## Dostupné módy
+- SELLING_FROM_BATTERY              → prodej z baterie (vysoké ceny, baterie nabitá, večer malá spotřeba)
+- SELLING_INSTEAD_OF_BATTERY_CHARGE → výroba FVE do sítě místo nabíjení (dopoledne, vysoké ceny)
+- USING_FROM_GRID_INSTEAD_OF_BATTERY → šetři baterii, ber ze sítě (cena sítě < opotřebení baterie)
+- SAVING_TO_BATTERY                 → nabij baterii z levné sítě (nízké ceny + zítra zataženo)
+- BLOCKING_GRID_OVERFLOW            → zákaz přetoků (záporné nebo nízké ceny pod {VYKUP_PRAH_CZK} Kč)
+- DEFAULT                           → výchozí chování FVE
+
+Odpověz POUZE tímto JSON, bez dalšího textu:
+{{"mod": "NÁZEV_MÓDU", "duvod": "Stručně česky max 120 znaků"}}"""
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-4-20250514",
+                "max_tokens": 150,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=30,
+        )
+        text = resp.json()["content"][0]["text"].strip().replace("```json", "").replace("```", "").strip()
+        parsed = json.loads(text)
+        mod = parsed.get("mod", "DEFAULT")
+        duvod = parsed.get("duvod", "—")
+        if mod not in MODY:
+            mod = "DEFAULT"
+        print(f"   ✅ {mod} — {duvod}")
+        return mod, duvod
+    except Exception as e:
+        print(f"   ❌ Chyba Claude: {e}")
+        return "DEFAULT", "Chyba AI — výchozí mód"
+
+# ============================================================
+# DENNÍ PLÁN (14:30)
+# ============================================================
+
+def denni_plan(pocasi: dict | None, ceny: dict | None):
+    print("📅 Sestavuji denní plán...")
+
+    def fmt(hodiny):
+        return ", ".join(f"{h}:00" for h in hodiny) if hodiny else "žádné"
+
+    if not ceny:
+        telegram("⚠️ <b>FVE Denní plán</b>\n\nNepodařilo se načíst ceny OTE.")
+        return
+
+    z = pocasi.get("zitrek", {}) if pocasi else {}
+    zprava = (
+        f"📅 <b>FVE Denní plán — {datetime.now().strftime('%d.%m.%Y')}</b>\n\n"
+        f"💰 <b>Ceny elektřiny dnes:</b>\n"
+        f"   Průměr: <b>{ceny['prumer']} Kč/kWh</b>\n"
+        f"   Max: <b>{ceny['max']} Kč/kWh</b>  |  Min: <b>{ceny['min']} Kč/kWh</b>\n\n"
+        f"🔴 Drahé hodiny (>{CENA_DRAHA_CZK} Kč): {fmt(ceny['hodiny_drahe'])}\n"
+        f"🟢 Levné hodiny (<{CENA_LEVNA_CZK} Kč): {fmt(ceny['hodiny_levne'])}\n"
+        f"⛔ Záporné ceny: {fmt(ceny['hodiny_zaporne'])}\n\n"
+        f"🌤️ <b>Zítra:</b> oblačnost {z.get('oblacnost','?')}%, slunce {z.get('slunce_h','?')}h\n\n"
+        f"🤖 Agent bude optimalizovat automaticky každou hodinu."
+    )
+    telegram(zprava)
+
+# ============================================================
+# NASTAVENÍ MÓDU NA PORTÁLU
+# ============================================================
+
+def nastavit_mod(session: requests.Session, mod: str) -> bool:
+    print(f"🖱️ Nastavuji: {MODY.get(mod, mod)}")
+
+    # Vypni všechny ostatní módy
+    for typ in [m for m in MODY if m not in ("DEFAULT", mod)]:
+        try:
+            session.post(API_URL, json=[{
+                "json": {"type": typ, "inverterId": INVERTER_ID, "state": "DISABLED"}
+            }], timeout=10)
+        except:
+            pass
+
+    if mod == "DEFAULT":
+        print("   ✅ Všechny módy vypnuty (DEFAULT)")
+        return True
+
+    try:
+        resp = session.post(
+            API_URL,
+            json=[{"json": {"type": mod, "inverterId": INVERTER_ID, "state": "ENABLED"}}],
+            timeout=15,
+        )
+        ok = resp.status_code == 200
+        print(f"   {'✅ Nastaveno' if ok else f'❌ Chyba {resp.status_code}'}")
+        return ok
+    except Exception as e:
+        print(f"   ❌ Výjimka: {e}")
+        return False
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+    now    = datetime.now()
+    cas    = now.strftime("%d.%m.%Y %H:%M")
+    hodina = now.hour
+    minuta = now.minute
+
+    print("=" * 55)
+    print(f"🌞 FVE Agent — {cas}")
+    print("=" * 55)
+
+    je_hodinovy  = (minuta < 5)
+    je_denni     = (hodina == 14 and minuta < 10)
+
+    # Sbírání dat
+    pocasi = ziskat_pocasi()
+    ceny   = ziskat_ceny()
+    session = prihlasit_se()
+    stav   = ziskat_stav_fve(session) if session else None
+
+    # Denní plán
+    if je_denni:
+        denni_plan(pocasi, ceny)
+
+    # Reaktivní kontrola — každých 5 minut
+    reaktivni = reaktivni_kontrola(stav, ceny)
+
+    if reaktivni:
+        novy_mod, duvod = reaktivni
+        print(f"\n⚡ REAKTIVNÍ ZÁSAH: {novy_mod} — {duvod}")
+    elif je_hodinovy:
+        novy_mod, duvod = claude_rozhodne(stav, pocasi, ceny)
+    else:
+        print("\nℹ️ Vše OK — žádná reaktivní změna, hodinový cyklus ještě nenastal")
+        return
+
+    if not session:
+        telegram(f"⚠️ <b>FVE Agent — {cas}</b>\n\n❌ Nelze se přihlásit na portál!")
+        return
+
+    predchozi = stav.get("aktivni_mod", "UNKNOWN") if stav else "UNKNOWN"
+    uspech    = nastavit_mod(session, novy_mod)
+
+    # Telegram — jen při změně
+    if uspech and novy_mod != predchozi:
+        bat     = f"{stav['baterie_procent']}%" if stav else "?"
+        vyroba  = f"{stav['vyroba_w']} W"       if stav else "?"
+        spotreba= f"{stav['spotreba_w']} W"      if stav else "?"
+        odber   = f"{stav['odber_site_w']} W"    if stav else "?"
+        cena_t  = f"{ceny['aktualni']} Kč/kWh"  if ceny and ceny.get("aktualni") else "?"
+
+        zprava = (
+            f"⚡ <b>FVE Agent — {cas}</b>\n\n"
+            f"🔄 <b>Změna módu:</b>\n"
+            f"   {MODY.get(predchozi, predchozi)}\n"
+            f"   ↓\n"
+            f"   <b>{MODY.get(novy_mod, novy_mod)}</b>\n\n"
+            f"📊 <b>Aktuální stav:</b>\n"
+            f"   🔋 Baterie: <b>{bat}</b>\n"
+            f"   ☀️ Výroba FVE: <b>{vyroba}</b>\n"
+            f"   🏠 Spotřeba: <b>{spotreba}</b>\n"
+            f"   🔌 Odběr sítě: <b>{odber}</b>\n"
+            f"   💰 Cena spot: <b>{cena_t}</b>\n\n"
+            f"📋 <i>{duvod}</i>"
+        )
+        telegram(zprava)
+    elif not uspech:
+        telegram(
+            f"❌ <b>FVE Agent — {cas}</b>\n\n"
+            f"Nepodařilo se nastavit <b>{MODY.get(novy_mod, novy_mod)}</b>\n"
+            f"Zkontrolujte portál nebo přihlašovací údaje."
+        )
+    else:
+        print(f"ℹ️ Mód beze změny ({MODY.get(novy_mod, novy_mod)}) — bez notifikace")
+
+    print("\n✅ Hotovo")
+
+
+if __name__ == "__main__":
+    main()
