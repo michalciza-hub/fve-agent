@@ -296,6 +296,8 @@ Instalace: FVE 10 kWp, baterie 10 kWh využitelných, roční spotřeba domácno
 {json.dumps(pocasi, ensure_ascii=False, indent=2) if pocasi else "Nedostupné"}
 
 ## Spotové ceny elektřiny (Kč/kWh) — 15min intervaly
+DŮLEŽITÉ: Hodiny označené "✓ proběhlo" jsou MINULOST — nelze je využít!
+Pro rozhodování o nabíjení používej POUZE hodiny bez tohoto označení (budoucnost) a ZÍTŘEK.
 {formovat_ceny_pro_prompt(ceny, hodina) if ceny else "Nedostupné"}
 
 ## Historie posledních rozhodnutí (učení z minulosti)
@@ -434,8 +436,9 @@ def formovat_ceny_pro_prompt(ceny: dict, hodina: int) -> str:
         return "🔴velmi drahá"
 
     from datetime import timedelta
-    dnes_datum  = datetime.now(TZ).strftime("%d.%m.%Y (%A)")
-    zitrek_datum = (datetime.now(TZ) + timedelta(days=1)).strftime("%d.%m.%Y (%A)")
+    now_tz = datetime.now(TZ)
+    dnes_datum   = now_tz.strftime("%d.%m.%Y")
+    zitrek_datum = (now_tz + timedelta(days=1)).strftime("%d.%m.%Y")
 
     radky = [f"Aktuální: {ceny.get('aktualni')} Kč/kWh | Min dnes: {ceny.get('min')} | Max dnes: {ceny.get('max')}",
              f"Průměr zítřka: {ceny.get('prumer_zitrek')} Kč/kWh",
