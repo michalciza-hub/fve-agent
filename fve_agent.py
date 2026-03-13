@@ -400,7 +400,8 @@ def main():
     print(f"🌞 FVE Agent — {cas}")
     print("=" * 55)
 
-    je_hodinovy  = (minuta < 5)
+    force_run    = os.environ.get("FORCE_RUN", "").lower() == "true"
+    je_hodinovy  = (minuta < 5) or force_run
     je_denni     = (hodina == 14 and minuta < 10)
 
     # Sbírání dat
