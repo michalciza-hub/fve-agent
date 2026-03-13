@@ -103,7 +103,7 @@ def ziskat_stav_fve(session: requests.Session) -> dict | None:
     try:
         resp = session.get(
             f"{PORTAL_URL}/api/trpc/inverters.lastState?batch=1",
-            params={"input": json.dumps([{"json": {"inverterId": INVERTER_ID}}])},
+            params={"input": json.dumps({"0": {"json": {"inverterId": INVERTER_ID}}})},
             timeout=15,
         )
         if resp.status_code != 200:
