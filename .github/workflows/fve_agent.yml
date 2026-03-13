@@ -12,6 +12,9 @@ on:
         type: choice
         options: ['true', 'false']
 
+permissions:
+  contents: write  # Potřebné pro commit history.json
+
 jobs:
   fve-agent:
     runs-on: ubuntu-latest
@@ -20,6 +23,8 @@ jobs:
     steps:
       - name: Stáhnout kód
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Nastavit Python 3.12
         uses: actions/setup-python@v5
