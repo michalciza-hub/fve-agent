@@ -2,10 +2,15 @@ name: FVE Agent
 
 on:
   schedule:
-    # Každých 5 minut od 5:00 do 22:00 SEČ (4:00-21:00 UTC)
     - cron: '*/5 4-21 * * *'
-  # Ruční spuštění z GitHubu pro testování
   workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Vynutit plný běh s Claude AI (ignorovat časový cyklus)'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
 
 jobs:
   fve-agent:
@@ -28,9 +33,12 @@ jobs:
         env:
           PORTAL_USERNAME:   ${{ secrets.PORTAL_USERNAME }}
           PORTAL_PASSWORD:   ${{ secrets.PORTAL_PASSWORD }}
+          PORTAL_SESSION:    ${{ secrets.PORTAL_SESSION }}
+          PORTAL_CSRF:       ${{ secrets.PORTAL_CSRF }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TELEGRAM_TOKEN:    ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID:  ${{ secrets.TELEGRAM_CHAT_ID }}
           FVE_LAT:           ${{ secrets.FVE_LAT }}
           FVE_LON:           ${{ secrets.FVE_LON }}
+          FORCE_RUN:         ${{ github.event.inputs.force_run || 'false' }}
         run: python fve_agent.py
