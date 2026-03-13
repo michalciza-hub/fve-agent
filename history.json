@@ -117,5 +117,22 @@
     "oblacnost_zitrek_pct": 99,
     "slunce_zitrek_h": 5.7,
     "uspech": true
+  },
+  {
+    "cas": "13.03.2026 23:00",
+    "mod": "DEFAULT",
+    "duvod": "Cena 2.85 Kč je střední - zítra ráno budou levnější ceny 0.63-0.81 Kč, počkám na lepší příležitost",
+    "baterie_pct": 30,
+    "vyroba_w": 0,
+    "spotreba_w": 698,
+    "odber_site_w": -19,
+    "cena_czk": 3.268,
+    "cena_min": -0.013,
+    "cena_max": 4.805,
+    "oblacnost_dnes_pct": 15,
+    "slunce_dnes_h": 10.5,
+    "oblacnost_zitrek_pct": 99,
+    "slunce_zitrek_h": 5.7,
+    "uspech": true
   }
 ]
