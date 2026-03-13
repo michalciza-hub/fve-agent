@@ -390,7 +390,6 @@ def nastavit_mod(session: requests.Session, mod: str) -> bool:
             json={"0": {"json": {"type": mod, "inverterId": INVERTER_ID, "state": "ENABLED"}}},
             timeout=15,
         )
-        print(f"   Status: {resp.status_code} | Response: {resp.text[:300]}")
         ok = resp.status_code == 200
         print(f"   {'✅ Nastaveno' if ok else f'❌ Chyba {resp.status_code}'}")
         return ok
