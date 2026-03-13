@@ -134,5 +134,22 @@
     "oblacnost_zitrek_pct": 99,
     "slunce_zitrek_h": 5.7,
     "uspech": true
+  },
+  {
+    "cas": "14.03.2026 00:09",
+    "mod": "DEFAULT",
+    "duvod": "Cena 2.8 Kč není levná, zítra jen 0.1h slunce ale podmínky pro nabíjení ze sítě nesplněny",
+    "baterie_pct": 21,
+    "vyroba_w": 0,
+    "spotreba_w": 751,
+    "odber_site_w": -10,
+    "cena_czk": 3.087,
+    "cena_min": 0.535,
+    "cena_max": 4.485,
+    "oblacnost_dnes_pct": 99,
+    "slunce_dnes_h": 5.0,
+    "oblacnost_zitrek_pct": 100,
+    "slunce_zitrek_h": 0.1,
+    "uspech": true
   }
 ]
