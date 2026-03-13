@@ -248,40 +248,6 @@ def ziskat_ceny() -> dict | None:
         return None
 # ============================================================
 
-def ziskat_ceny() -> dict | None:
-    print("💰 Načítám ceny OTE...")
-    try:
-        resp = requests.get(
-            "https://www.ote-cr.cz/cs/kratkodobe-trhy/elektrina/denni-trh/@@chart-data",
-            params={"report_date": date.today().strftime("%Y-%m-%d"), "type": "1H"},
-            headers={"Accept": "application/json"},
-            timeout=10,
-        )
-        body = resp.json().get("data", {}).get("dataLine", [{}])[0].get("point", [])
-        eur_mwh = [float(p.get("y", 0)) for p in body]
-        if not eur_mwh:
-            return None
-
-        kurz = 25
-        czk = [round(e * kurz / 1000, 3) for e in eur_mwh]
-        h = datetime.now(TZ).hour
-
-        print(f"   Aktuální: {czk[h] if h < len(czk) else '?'} Kč/kWh | Min: {min(czk):.3f} | Max: {max(czk):.3f}")
-        return {
-            "aktualni":       czk[h] if h < len(czk) else None,
-            "prumer":         round(sum(czk) / len(czk), 3),
-            "max":            max(czk),
-            "min":            min(czk),
-            "vsechny":        czk,
-            "zbytek":         czk[h:],
-            "hodiny_drahe":   [i for i, c in enumerate(czk) if c >= CENA_DRAHA_CZK],
-            "hodiny_levne":   [i for i, c in enumerate(czk) if c <= CENA_LEVNA_CZK],
-            "hodiny_zaporne": [i for i, c in enumerate(czk) if c < 0],
-        }
-    except Exception as e:
-        print(f"   ⚠️ Chyba: {e}")
-        return None
-
 # ============================================================
 # REAKTIVNÍ KONTROLA — rychlá pravidla bez AI
 # ============================================================
