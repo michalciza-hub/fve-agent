@@ -149,7 +149,11 @@ def ziskat_stav_fve(session: requests.Session) -> dict | None:
         }
         pretok = max(0, -stav["odber_site_w"])
         odber  = max(0,  stav["odber_site_w"])
-        print(f"   🔋 {stav['baterie_procent']}% | ☀️ {stav['vyroba_w']}W | 🏠 {stav['spotreba_w']}W | 🔌 odběr {odber}W | ↑ přetok {pretok}W")
+        bat_w  = stav["baterie_w"]
+        if bat_w > 100:   bat_info = f"+{bat_w}W ↑nabíjí"
+        elif bat_w < -100: bat_info = f"{bat_w}W ↓vybíjí"
+        else:              bat_info = f"{bat_w}W ~klid"
+        print(f"   🔋 {stav['baterie_procent']}% [{bat_info}] | ☀️ {stav['vyroba_w']}W | 🏠 {stav['spotreba_w']}W | 🔌 odběr {odber}W | ↑ přetok {pretok}W")
         return stav
     except Exception as e:
         print(f"   ⚠️ Chyba: {e}")
@@ -560,10 +564,16 @@ def formatovat_historii_pro_claude(historie: list) -> str:
         mod = z.get("mod", "?")
         duvod = z.get("duvod", "?")
         bat = z.get("baterie_pct", "?")
+        bat_w = z.get("baterie_w", 0) or 0
         cena = z.get("cena_czk", "?")
+        level = z.get("cena_level", "?")
         vyroba = z.get("vyroba_w", "?")
         oblak_zitrek = z.get("oblacnost_zitrek_pct", "?")
-        radky.append(f"{cas} | bat:{bat}% | FVE:{vyroba}W | cena:{cena}Kč | zítra-oblak:{oblak_zitrek}% → {mod} ({duvod[:60]})")
+        slunce_zitrek = z.get("slunce_zitrek_h", "?")
+        if bat_w > 100:    bat_tok = f"+{bat_w}↑"
+        elif bat_w < -100: bat_tok = f"{bat_w}↓"
+        else:              bat_tok = "~0"
+        radky.append(f"{cas} | bat:{bat}%[{bat_tok}W] | FVE:{vyroba}W | cena:{cena}Kč[{level}] | zítra:{oblak_zitrek}%ob/{slunce_zitrek}h☀ → {mod} ({duvod[:60]})")
 
     return "\n".join(radky)
 
@@ -659,6 +669,8 @@ def main():
             "vyroba_w":             stav.get("vyroba_w") if stav else None,
             "spotreba_w":           stav.get("spotreba_w") if stav else None,
             "odber_site_w":         stav.get("odber_site_w") if stav else None,
+            "baterie_w":            stav.get("baterie_w") if stav else None,
+            "cena_level":           ceny.get("aktualni_level") if ceny else None,
             "cena_czk":             ceny.get("aktualni") if ceny else None,
             "cena_min":             ceny.get("min") if ceny else None,
             "cena_max":             ceny.get("max") if ceny else None,
