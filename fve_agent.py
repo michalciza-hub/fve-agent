@@ -9,6 +9,7 @@ Třívrstvá logika:
 
 import os
 import json
+import subprocess
 import requests
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
@@ -38,6 +39,8 @@ BATERIE_MIN_PCT  = 20     # % — pod touto hodnotou zastav prodej z baterie
 CENA_DRAHA_CZK   = 3.5    # Kč/kWh — nad touto cenou považujeme elektřinu za drahou (špička)
 CENA_LEVNA_CZK   = 0.5    # Kč/kWh — pod touto cenou považujeme elektřinu za levnou (přebytek FVE)
 BATERIE_OPOTREBENI_CZK = 0.6  # Kč/kWh — náklad na cyklus baterie
+HISTORIE_SOUBOR = "history.json"
+HISTORIE_MAX_ZAZNAMU = 30 * 24  # 30 dní po hodinách = max 720 záznamů
 
 MODY = {
     "SELLING_INSTEAD_OF_BATTERY_CHARGE": "🟡 Prodej do sítě místo nabíjení",
@@ -275,11 +278,12 @@ def reaktivni_kontrola(stav: dict | None, ceny: dict | None) -> tuple[str, str] 
 # CLAUDE AI ROZHODOVÁNÍ
 # ============================================================
 
-def claude_rozhodne(stav: dict | None, pocasi: dict | None, ceny: dict | None) -> tuple[str, str]:
+def claude_rozhodne(stav: dict | None, pocasi: dict | None, ceny: dict | None, historie: list = []) -> tuple[str, str]:
     print("🧠 Ptám se Claude AI...")
     cas = datetime.now(TZ).strftime("%H:%M")
     hodina = datetime.now(TZ).hour
 
+    historie_text = formatovat_historii_pro_claude(historie)
     prompt = f"""Jsi AI agent řídící fotovoltaickou elektrárnu (FVE) s baterií v České republice.
 Instalace: FVE 10 kWp, baterie 10 kWh využitelných, roční spotřeba domácnosti ~11 MWh.
 
@@ -293,6 +297,10 @@ Instalace: FVE 10 kWp, baterie 10 kWh využitelných, roční spotřeba domácno
 
 ## Spotové ceny elektřiny OTE (Kč/kWh)
 {json.dumps(ceny, ensure_ascii=False, indent=2) if ceny else "Nedostupné"}
+
+## Historie posledních rozhodnutí (učení z minulosti)
+Formát: čas | baterie% | FVE výroba | cena | oblačnost zítra → zvolený mód (důvod)
+{historie_text}
 
 ## Pevná pravidla
 1. NIKDY nepoužívej mód SELLING_FROM_BATTERY — prodej z baterie je zakázán
@@ -397,6 +405,73 @@ def nastavit_mod(session: requests.Session, mod: str) -> bool:
         print(f"   ❌ Výjimka: {e}")
         return False
 
+
+# ============================================================
+# PAMĚŤ — HISTORIE ROZHODNUTÍ
+# ============================================================
+
+def nacist_historii() -> list:
+    """Načte historii rozhodnutí z history.json."""
+    try:
+        if os.path.exists(HISTORIE_SOUBOR):
+            with open(HISTORIE_SOUBOR, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            print(f"📚 Historie: načteno {len(data)} záznamů")
+            return data
+    except Exception as e:
+        print(f"📚 Historie: chyba načítání — {e}")
+    return []
+
+def ulozit_zaznam(historie: list, zaznam: dict) -> list:
+    """Přidá nový záznam do historie a ořízne na max počet."""
+    historie.append(zaznam)
+    # Ořízni na posledních 720 záznamů (30 dní × 24 hodin)
+    if len(historie) > HISTORIE_MAX_ZAZNAMU:
+        historie = historie[-HISTORIE_MAX_ZAZNAMU:]
+    try:
+        with open(HISTORIE_SOUBOR, "w", encoding="utf-8") as f:
+            json.dump(historie, f, ensure_ascii=False, indent=2)
+        print(f"📚 Historie: uloženo ({len(historie)} záznamů)")
+    except Exception as e:
+        print(f"📚 Historie: chyba uložení — {e}")
+    return historie
+
+def commitnout_historii():
+    """Commitne history.json zpět do GitHub repozitáře."""
+    try:
+        subprocess.run(["git", "config", "user.email", "fve-agent@github-actions"], check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.name", "FVE Agent"], check=True, capture_output=True)
+        subprocess.run(["git", "add", HISTORIE_SOUBOR], check=True, capture_output=True)
+        result = subprocess.run(["git", "diff", "--cached", "--quiet"], capture_output=True)
+        if result.returncode != 0:  # Jsou změny
+            subprocess.run(["git", "commit", "-m", f"history: update {datetime.now(TZ).strftime('%Y-%m-%d %H:%M')}"], check=True, capture_output=True)
+            subprocess.run(["git", "push"], check=True, capture_output=True)
+            print("📚 Historie: commitnuto do repozitáře")
+        else:
+            print("📚 Historie: žádné změny k commitnutí")
+    except Exception as e:
+        print(f"📚 Historie: chyba commitu — {e}")
+
+def formatovat_historii_pro_claude(historie: list) -> str:
+    """Formátuje posledních 48 hodinových záznamů pro Claude prompt."""
+    if not historie:
+        return "Žádná historie zatím není k dispozici."
+
+    # Vezmi posledních 48 záznamů (2 dny)
+    posledni = historie[-48:]
+    radky = []
+    for z in posledni:
+        cas = z.get("cas", "?")
+        mod = z.get("mod", "?")
+        duvod = z.get("duvod", "?")
+        bat = z.get("baterie_pct", "?")
+        cena = z.get("cena_czk", "?")
+        vyroba = z.get("vyroba_w", "?")
+        oblak_zitrek = z.get("oblacnost_zitrek_pct", "?")
+        radky.append(f"{cas} | bat:{bat}% | FVE:{vyroba}W | cena:{cena}Kč | zítra-oblak:{oblak_zitrek}% → {mod} ({duvod[:60]})")
+
+    return "\n".join(radky)
+
 # ============================================================
 # MAIN
 # ============================================================
@@ -415,6 +490,9 @@ def main():
     je_hodinovy  = (minuta < 5) or force_run
     je_denni     = (hodina == 14 and minuta < 10)
 
+    # Načíst historii
+    historie = nacist_historii()
+
     # Sbírání dat
     pocasi = ziskat_pocasi()
     ceny   = ziskat_ceny()
@@ -432,7 +510,7 @@ def main():
         novy_mod, duvod = reaktivni
         print(f"\n⚡ REAKTIVNÍ ZÁSAH: {novy_mod} — {duvod}")
     elif je_hodinovy:
-        novy_mod, duvod = claude_rozhodne(stav, pocasi, ceny)
+        novy_mod, duvod = claude_rozhodne(stav, pocasi, ceny, historie)
     else:
         print("\nℹ️ Vše OK — žádná reaktivní změna, hodinový cyklus ještě nenastal")
         return
@@ -475,6 +553,28 @@ def main():
         )
     else:
         print(f"ℹ️ Mód beze změny ({MODY.get(novy_mod, novy_mod)}) — bez notifikace")
+
+    # Uložit záznam do historie (jen při hodinovém cyklu nebo reaktivním zásahu)
+    if je_hodinovy or reaktivni:
+        zaznam = {
+            "cas":                  cas,
+            "mod":                  novy_mod,
+            "duvod":                duvod,
+            "baterie_pct":          stav.get("baterie_procent") if stav else None,
+            "vyroba_w":             stav.get("vyroba_w") if stav else None,
+            "spotreba_w":           stav.get("spotreba_w") if stav else None,
+            "odber_site_w":         stav.get("odber_site_w") if stav else None,
+            "cena_czk":             ceny.get("aktualni") if ceny else None,
+            "cena_min":             ceny.get("min") if ceny else None,
+            "cena_max":             ceny.get("max") if ceny else None,
+            "oblacnost_dnes_pct":   pocasi["dnes"]["oblacnost"] if pocasi else None,
+            "slunce_dnes_h":        pocasi["dnes"]["slunce_h"] if pocasi else None,
+            "oblacnost_zitrek_pct": pocasi["zitrek"]["oblacnost"] if pocasi else None,
+            "slunce_zitrek_h":      pocasi["zitrek"]["slunce_h"] if pocasi else None,
+            "uspech":               uspech,
+        }
+        historie = ulozit_zaznam(historie, zaznam)
+        commitnout_historii()
 
     print("\n✅ Hotovo")
 
