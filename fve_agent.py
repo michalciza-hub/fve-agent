@@ -433,20 +433,29 @@ def formovat_ceny_pro_prompt(ceny: dict, hodina: int) -> str:
         if c < 3.5:  return "🟠drahá"
         return "🔴velmi drahá"
 
+    from datetime import timedelta
+    dnes_datum  = datetime.now(TZ).strftime("%d.%m.%Y (%A)")
+    zitrek_datum = (datetime.now(TZ) + timedelta(days=1)).strftime("%d.%m.%Y (%A)")
+
     radky = [f"Aktuální: {ceny.get('aktualni')} Kč/kWh | Min dnes: {ceny.get('min')} | Max dnes: {ceny.get('max')}",
              f"Průměr zítřka: {ceny.get('prumer_zitrek')} Kč/kWh",
              "",
-             "DNES (hodinové průměry):"]
+             f"DNES {dnes_datum} (hodinové průměry):"]
 
     for h in range(24):
         c = hod_prumer(dnes, h)
-        marker = "◀ NYNÍ" if h == hodina else ""
-        radky.append(f"  {h:02d}:00  {c:5.2f} Kč  {uroven(c)} {marker}")
+        if h < hodina:
+            marker = "✓ proběhlo"
+        elif h == hodina:
+            marker = "◀ NYNÍ"
+        else:
+            marker = ""
+        radky.append(f"  {h:02d}:00  {c:5.3f} Kč  {uroven(c)} {marker}")
 
-    radky += ["", "ZÍTŘEK (hodinové průměry):"]
+    radky += ["", f"ZÍTŘEK {zitrek_datum} (hodinové průměry):"]
     for h in range(24):
         c = hod_prumer(zitrek, h)
-        radky.append(f"  {h:02d}:00  {c:5.2f} Kč  {uroven(c)}")
+        radky.append(f"  {h:02d}:00  {c:5.3f} Kč  {uroven(c)}")
 
     return "\n".join(radky)
 
