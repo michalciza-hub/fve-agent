@@ -15,5 +15,22 @@
     "oblacnost_zitrek_pct": 99,
     "slunce_zitrek_h": 5.7,
     "uspech": true
+  },
+  {
+    "cas": "13.03.2026 22:23",
+    "mod": "SAVING_TO_BATTERY",
+    "duvod": "Zítra zataženo (99% oblačnost), jen 5,7h slunce. Nízká baterie 25%. Cena 3.0 Kč přijatelná pro nabití.",
+    "baterie_pct": 25,
+    "vyroba_w": 0,
+    "spotreba_w": 846,
+    "odber_site_w": 6446,
+    "cena_czk": 3.0,
+    "cena_min": -0.013,
+    "cena_max": 4.805,
+    "oblacnost_dnes_pct": 15,
+    "slunce_dnes_h": 10.5,
+    "oblacnost_zitrek_pct": 99,
+    "slunce_zitrek_h": 5.7,
+    "uspech": true
   }
 ]
