@@ -232,9 +232,13 @@ def ziskat_ceny() -> dict | None:
         hodiny_levne   = [i for i, c in enumerate(czk_hod) if c <= CENA_LEVNA_CZK]
         hodiny_zaporne = [i for i, c in enumerate(czk_hod) if c < 0]
 
-        print(f"   Aktuální: {aktualni} Kč/kWh | Min: {min(dnes):.2f} | Max: {max(dnes):.2f}")
+        # Aktuální level přímo z API
+        aktualni_level = data["hoursToday"][idx]["level"] if idx < len(data["hoursToday"]) else "unknown"
+
+        print(f"   Aktuální: {aktualni} Kč/kWh [{aktualni_level}] | Min: {min(dnes):.2f} | Max: {max(dnes):.2f}")
         return {
             "aktualni":       aktualni,
+            "aktualni_level": aktualni_level,
             "prumer":         round(sum(czk_hod) / len(czk_hod), 2),
             "max":            max(dnes),
             "min":            min(dnes),
@@ -296,8 +300,8 @@ Instalace: FVE 10 kWp, baterie 10 kWh využitelných, roční spotřeba domácno
 {json.dumps(pocasi, ensure_ascii=False, indent=2) if pocasi else "Nedostupné"}
 
 ## Spotové ceny elektřiny (Kč/kWh) — 15min intervaly
+Aktuální cenová hladina: {ceny.get("aktualni_level", "?").upper() if ceny else "?"}
 DŮLEŽITÉ: Hodiny označené "✓ proběhlo" jsou MINULOST — nelze je využít!
-Pro rozhodování o nabíjení používej POUZE hodiny bez tohoto označení (budoucnost) a ZÍTŘEK.
 {formovat_ceny_pro_prompt(ceny, hodina) if ceny else "Nedostupné"}
 
 ## Historie posledních rozhodnutí (učení z minulosti)
@@ -310,11 +314,8 @@ Formát: čas | baterie% | FVE výroba | cena | oblačnost zítra → zvolený m
 3. Opotřebení baterie ~0,6 Kč/kWh — zohledni při rozhodování
 4. Vždy aktivní jen JEDEN mód (nebo DEFAULT)
 5. Mysli dopředu — zvaž zbytek dne i zítřek
-6. SAVING_TO_BATTERY (nabíjení ze sítě): Před aktivací vždy zkontroluj nadcházející hodiny.
-   Pokud v příštích 6 hodinách existuje hodina s cenou alespoň o 0,5 Kč/kWh nižší než je teď,
-   POČKEJ na ni — nastav DEFAULT a nech baterii na příští levnější nabíjení.
-   Nabíjej teď pouze pokud: (a) baterie je kriticky nízká (<25%) A zítra bude zataženo,
-   nebo (b) aktuální cena je již nejnižší v příštích 6 hodinách.
+6. SAVING_TO_BATTERY (nabíjení ze sítě): Používej POUZE pokud aktuální cenová hladina je "low".
+   Pokud aktuální hladina není "low" → NIKDY nepoužívej SAVING_TO_BATTERY, zvol DEFAULT.
 
 ## Dostupné módy (POUZE tyto 4 + DEFAULT)
 - SELLING_INSTEAD_OF_BATTERY_CHARGE → výroba FVE do sítě místo nabíjení (dopoledne, vysoké ceny > {VYKUP_PRAH_CZK} Kč)
