@@ -72,11 +72,12 @@ def prihlasit_se() -> requests.Session | None:
     print("🔐 Přihlašuji se (cookie)...")
     session = requests.Session()
     session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
         "Content-Type": "application/json",
         "Origin": PORTAL_URL,
-        "Referer": PORTAL_URL,
-        "x-csrf-token": PORTAL_CSRF,
+        "Referer": f"{PORTAL_URL}/cs/household/hzvoejscpwua00vkzlw28vm0/overview",
+        "x-proteus-csrf": PORTAL_CSRF,
+        "trpc-accept": "application/jsonl",
     })
     session.cookies.set("proteus_session", PORTAL_SESSION, domain="proteus.deltagreen.cz")
     session.cookies.set("proteus_csrf", PORTAL_CSRF, domain="proteus.deltagreen.cz")
