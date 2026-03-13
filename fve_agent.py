@@ -126,7 +126,8 @@ def ziskat_stav_fve(session: requests.Session) -> dict | None:
                 continue
 
         if not data:
-            print("   ⚠️ Nepodařilo se naparsovat data")
+            print(f"   ⚠️ Nepodařilo se naparsovat data")
+            print(f"   RAW: {repr(raw[:500])}")
             return None
 
         # Skutečné názvy polí z API (ověřeno z Network Response):
