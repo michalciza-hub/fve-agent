@@ -491,12 +491,12 @@ def formovat_ceny_pro_prompt(ceny: dict, hodina: int) -> str:
             marker = "◀ NYNÍ"
         else:
             marker = ""
-        radky.append(f"  {h:02d}:00  {c:5.3f} Kč  {uroven(c)} {marker}")
+        radky.append(f"  {h:02d}:00  {f"{c:5.3f}" if c is not None else "  ???"} Kč  {uroven(c)} {marker}")
 
     radky += ["", f"ZÍTŘEK {zitrek_datum} (hodinové průměry):"]
     for h in range(24):
         c = hod_prumer(zitrek, h)
-        radky.append(f"  {h:02d}:00  {c:5.3f} Kč  {uroven(c)}")
+        radky.append(f"  {h:02d}:00  {f"{c:5.3f}" if c is not None else "  ???"} Kč  {uroven(c)}")
 
     return "\n".join(radky)
 
