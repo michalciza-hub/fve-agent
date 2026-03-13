@@ -1,0 +1,36 @@
+name: FVE Agent
+
+on:
+  schedule:
+    # Každých 5 minut od 5:00 do 22:00 SEČ (4:00-21:00 UTC)
+    - cron: '*/5 4-21 * * *'
+  # Ruční spuštění z GitHubu pro testování
+  workflow_dispatch:
+
+jobs:
+  fve-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Stáhnout kód
+        uses: actions/checkout@v4
+
+      - name: Nastavit Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Nainstalovat závislosti
+        run: pip install requests
+
+      - name: Spustit FVE agenta
+        env:
+          PORTAL_USERNAME:   ${{ secrets.PORTAL_USERNAME }}
+          PORTAL_PASSWORD:   ${{ secrets.PORTAL_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_TOKEN:    ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID:  ${{ secrets.TELEGRAM_CHAT_ID }}
+          FVE_LAT:           ${{ secrets.FVE_LAT }}
+          FVE_LON:           ${{ secrets.FVE_LON }}
+        run: python fve_agent.py
