@@ -721,5 +721,24 @@
     "oblacnost_zitrek_pct": 100,
     "slunce_zitrek_h": 0.0,
     "uspech": true
+  },
+  {
+    "cas": "14.03.2026 15:00",
+    "mod": "DEFAULT",
+    "duvod": "FVE vyrábí 1045W > 1000W přebytek, baterie se nabíjí sama zadarmo. Cena 1.61 Kč není levná pro nabíjení ze sítě.",
+    "baterie_pct": 100,
+    "vyroba_w": 1045,
+    "spotreba_w": 744,
+    "odber_site_w": -412,
+    "baterie_w": 124,
+    "cena_level": "low",
+    "cena_czk": 0.821,
+    "cena_min": 0.535,
+    "cena_max": 4.485,
+    "oblacnost_dnes_pct": 96,
+    "slunce_dnes_h": 6.1,
+    "oblacnost_zitrek_pct": 100,
+    "slunce_zitrek_h": 0.0,
+    "uspech": true
   }
 ]
