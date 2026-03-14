@@ -8,7 +8,7 @@ on:
       force_run:
         description: 'Vynutit plný běh s Claude AI (ignorovat časový cyklus)'
         required: false
-        default: 'true'
+        default: 'false'
         type: choice
         options: ['true', 'false']
 
