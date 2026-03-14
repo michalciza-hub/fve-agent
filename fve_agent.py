@@ -321,7 +321,7 @@ Formát: čas | baterie% | FVE výroba | cena | oblačnost zítra → zvolený m
 5. Mysli dopředu — zvaž zbytek dne i zítřek
 6. SAVING_TO_BATTERY (nabíjení ze sítě): Používej POUZE pokud jsou splněny VŠECHNY podmínky:
    a) Aktuální cenová hladina je "low"
-   b) FVE aktuálně vyrábí méně než 1000W (pokud vyrábí víc, baterie se nabíjí sama zadarmo)
+   b) Přebytek FVE (výroba mínus spotřeba domu) je méně než 1500W — pokud je přebytek ≥1500W, baterie se nabíjí sama zadarmo a SAVING_TO_BATTERY je zbytečné
    c) Zítra bude oblačnost > 60% (pokud bude slunce, baterie se nabije sama přes den)
    Pokud JAKÁKOLIV podmínka není splněna → zvol DEFAULT.
 
