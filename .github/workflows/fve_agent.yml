@@ -1,8 +1,8 @@
 name: FVE Agent
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
+  #schedule:
+  #  - cron: '*/10 * * * *'
   workflow_dispatch:
     inputs:
       force_run:
