@@ -835,5 +835,24 @@
     "oblacnost_zitrek_pct": 100,
     "slunce_zitrek_h": 0.0,
     "uspech": true
+  },
+  {
+    "cas": "14.03.2026 18:00",
+    "mod": "DEFAULT",
+    "duvod": "Cena 3.94 Kč je velmi drahá, baterie 79% plná pokrývá spotřebu. FVE nevyrábí, ideální stav pro večer.",
+    "baterie_pct": 79,
+    "vyroba_w": 0,
+    "spotreba_w": 2198,
+    "odber_site_w": -12,
+    "baterie_w": -2175,
+    "cena_level": "high",
+    "cena_czk": 3.422,
+    "cena_min": 0.535,
+    "cena_max": 4.485,
+    "oblacnost_dnes_pct": 95,
+    "slunce_dnes_h": 6.5,
+    "oblacnost_zitrek_pct": 100,
+    "slunce_zitrek_h": 0.0,
+    "uspech": true
   }
 ]
