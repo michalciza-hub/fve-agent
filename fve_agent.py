@@ -766,5 +766,3 @@ print("\n✅ Hotovo")
 
 if **name** == “**main**”:
 main()
-
-
