@@ -740,5 +740,24 @@
     "oblacnost_zitrek_pct": 100,
     "slunce_zitrek_h": 0.0,
     "uspech": true
+  },
+  {
+    "cas": "14.03.2026 15:30",
+    "mod": "DEFAULT",
+    "duvod": "FVE vyrábí 626W, baterie 100% plná. Cena 1.61 Kč je střední, večer vysoké ceny 4+ Kč - baterie připravena.",
+    "baterie_pct": 100,
+    "vyroba_w": 626,
+    "spotreba_w": 891,
+    "odber_site_w": 131,
+    "baterie_w": 120,
+    "cena_level": "low",
+    "cena_czk": 1.699,
+    "cena_min": 0.535,
+    "cena_max": 4.485,
+    "oblacnost_dnes_pct": null,
+    "slunce_dnes_h": null,
+    "oblacnost_zitrek_pct": null,
+    "slunce_zitrek_h": null,
+    "uspech": true
   }
 ]
