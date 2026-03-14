@@ -40,6 +40,7 @@ CENA_DRAHA_CZK   = 3.5    # Kč/kWh — nad touto cenou považujeme elektřinu z
 CENA_LEVNA_CZK   = 0.5    # Kč/kWh — pod touto cenou považujeme elektřinu za levnou (přebytek FVE)
 BATERIE_OPOTREBENI_CZK = 0.6  # Kč/kWh — náklad na cyklus baterie
 HISTORIE_SOUBOR = "history.json"
+MOD_SOUBOR      = "current_mode.json"
 HISTORIE_MAX_ZAZNAMU = 30 * 24  # 30 dní po hodinách = max 720 záznamů
 
 MODY = {
@@ -509,6 +510,28 @@ def formovat_ceny_pro_prompt(ceny: dict, hodina: int) -> str:
 # PAMĚŤ — HISTORIE ROZHODNUTÍ
 # ============================================================
 
+def nacist_aktualni_mod() -> str:
+    """Načte naposledy nastavený mód z lokálního souboru."""
+    try:
+        if os.path.exists(MOD_SOUBOR):
+            with open(MOD_SOUBOR, "r") as f:
+                data = json.load(f)
+            return data.get("mod", "DEFAULT")
+    except:
+        pass
+    return "DEFAULT"
+
+def ulozit_aktualni_mod(mod: str):
+    """Uloží aktuálně nastavený mód do souboru."""
+    try:
+        with open(MOD_SOUBOR, "w") as f:
+            json.dump({"mod": mod, "cas": datetime.now(TZ).strftime("%d.%m.%Y %H:%M")}, f)
+        # Commitnout spolu s historií
+        subprocess.run(["git", "add", MOD_SOUBOR], capture_output=True)
+    except Exception as e:
+        print(f"   ⚠️ Chyba uložení módu: {e}")
+
+
 def nacist_historii() -> list:
     """Načte historii rozhodnutí z history.json."""
     try:
@@ -624,8 +647,10 @@ def main():
         telegram(f"⚠️ <b>FVE Agent — {cas}</b>\n\n❌ Nelze se přihlásit na portál!")
         return
 
-    predchozi = stav.get("aktivni_mod", "UNKNOWN") if stav else "UNKNOWN"
+    predchozi = nacist_aktualni_mod()
     uspech    = nastavit_mod(session, novy_mod)
+    if uspech:
+        ulozit_aktualni_mod(novy_mod)
 
     # Telegram — jen při změně
     if uspech and novy_mod != predchozi:
