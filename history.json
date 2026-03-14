@@ -797,5 +797,24 @@
     "oblacnost_zitrek_pct": 100,
     "slunce_zitrek_h": 0.0,
     "uspech": true
+  },
+  {
+    "cas": "14.03.2026 17:00",
+    "mod": "DEFAULT",
+    "duvod": "Cena 3.44 Kč je drahá, baterie 93% plná. FVE vyrábí jen 306W, baterie správně vybíjí se do domu.",
+    "baterie_pct": 93,
+    "vyroba_w": 306,
+    "spotreba_w": 1173,
+    "odber_site_w": -231,
+    "baterie_w": -977,
+    "cena_level": "medium",
+    "cena_czk": 2.911,
+    "cena_min": 0.535,
+    "cena_max": 4.485,
+    "oblacnost_dnes_pct": 96,
+    "slunce_dnes_h": 6.1,
+    "oblacnost_zitrek_pct": 100,
+    "slunce_zitrek_h": 0.0,
+    "uspech": true
   }
 ]
