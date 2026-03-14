@@ -379,5 +379,24 @@
     "oblacnost_zitrek_pct": 100,
     "slunce_zitrek_h": 0.0,
     "uspech": true
+  },
+  {
+    "cas": "14.03.2026 09:00",
+    "mod": "SAVING_TO_BATTERY",
+    "duvod": "Levná cena 0.81 Kč, FVE vyrábí jen 897W, zítra 100% oblačnost bez slunce",
+    "baterie_pct": 58,
+    "vyroba_w": 897,
+    "spotreba_w": 738,
+    "odber_site_w": 5270,
+    "baterie_w": 5445,
+    "cena_level": "low",
+    "cena_czk": 0.892,
+    "cena_min": 0.535,
+    "cena_max": 4.485,
+    "oblacnost_dnes_pct": 96,
+    "slunce_dnes_h": 6.2,
+    "oblacnost_zitrek_pct": 100,
+    "slunce_zitrek_h": 0.0,
+    "uspech": true
   }
 ]
