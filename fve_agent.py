@@ -1064,8 +1064,19 @@ def algoritmicke_rozhodnuti(stav: dict | None, ceny: dict | None, pocasi: dict |
                 return "DEFAULT", f"Čekám na optimální čas nabíjení {denni_analyza['zahajeni_h']:02d}:{denni_analyza['zahajeni_min']:02d}"
 
     # ================================================================
-    # Žádné jasné pravidlo → předej Claude AI
+    # PRAVIDLO 8: Standardní provoz — nic k optimalizaci
+    # Pokud žádné z předchozích pravidel nezachytilo situaci:
+    # - žádné levné hodiny pro nabíjení
+    # - cena není záporná
+    # - FVE nevyrábí přebytek
+    # → standardní provoz, baterie pokrývá spotřebu nebo dobíjí ze sítě normálně
+    # → předej Claude POUZE pokud je výjimečná situace (nestandardní kombinace)
     # ================================================================
+    # Pokud denní ani noční analýza neexistuje → nic k optimalizaci → DEFAULT
+    if denni_analyza is None and nocni_analyza is None:
+        return "DEFAULT", "Standardní provoz — žádné levné hodiny k dispozici"
+
+    # Žádné jasné pravidlo → předej Claude AI
     return None
 
 
