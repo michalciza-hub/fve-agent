@@ -290,7 +290,7 @@ def reaktivni_kontrola(stav: dict | None, ceny: dict | None) -> tuple[str, str] 
 # CLAUDE AI ROZHODOVÁNÍ
 # ============================================================
 
-def claude_rozhodne(stav: dict | None, pocasi: dict | None, ceny: dict | None, historie: list = [], nocni_analyza: dict | None = None) -> tuple[str, str]:
+def claude_rozhodne(stav: dict | None, pocasi: dict | None, ceny: dict | None, historie: list = [], nocni_analyza: dict | None = None, denni_analyza: dict | None = None) -> tuple[str, str]:
     print("🧠 Ptám se Claude AI...")
     cas = datetime.now(TZ).strftime("%H:%M")
     hodina = datetime.now(TZ).hour
@@ -319,8 +319,11 @@ DŮLEŽITÉ: Hodiny označené "✓ proběhlo" jsou MINULOST — nelze je využ�
 Formát: čas | baterie% | tok baterie | FVE výroba | cena[level] | zítra oblačnost/slunce → mód (důvod)
 {historie_text}
 
+## Analýza denního nabíjení (optimální čas pro nabití ze sítě)
+{formovat_denni_analyzu(denni_analyza) if denni_analyza else "Mimo denní okno (6:00-21:00) — analýza není relevantní"}
+
 ## Analýza nočního nabíjení
-{formovat_nocni_analyzu(nocni_analyza) if nocni_analyza else "Mimo noční okno (22:00-05:00) — analýza není relevantní"}
+{formovat_nocni_analyzu(nocni_analyza) if nocni_analyza else "Mimo noční okno (00:00-05:59) — analýza není relevantní"}
 
 ## Pevná pravidla
 1. NIKDY nepoužívej mód SELLING_FROM_BATTERY — prodej z baterie je zakázán
@@ -330,12 +333,13 @@ Formát: čas | baterie% | tok baterie | FVE výroba | cena[level] | zítra obla
 5. Mysli dopředu — zvaž zbytek dne i zítřek
 6. SAVING_TO_BATTERY (nabíjení ze sítě): Používej ve dvou situacích:
 
-   A) DENNÍ nabíjení (6:00-21:00): Aktivuj pokud jsou splněny podmínky:
-      - Aktuální cena je LOW nebo výrazně nižší než predikovaná večerní špička
-      - Baterie < 50% A (dnes oblačnost > 70% NEBO přebytek FVE < 500W)
-      - Přičti opotřebení baterie 0.6 Kč — musí stále dávat smysl
-      PŘÍKLAD: baterie 14%, cena 0.8 Kč, dnes 100% oblačnost, večer špička 3.5 Kč → NABÍJEJ
-      PŘÍKLAD: baterie 90%, cena 0.8 Kč → NENABÍJEJ, baterie je plná
+   A) DENNÍ nabíjení (6:00-21:00): Použij "Analýzu denního nabíjení" výše:
+      - Pokud "Doporučená akce" = "NABÍJEJ TEĎ" → aktivuj SAVING_TO_BATTERY
+      - Pokud "Doporučená akce" = "POČKEJ do HH:MM" → nastav DEFAULT, ještě není optimální čas
+      - Pokud baterie > 90% → DEFAULT (není třeba nabíjet)
+      - Pokud přebytek FVE (výroba - spotřeba) > 1500W → DEFAULT (baterie se nabíjí sama)
+      PŘÍKLAD: baterie 21%, konec levného 14:00, potřeba 1.4h → zahaj v 12:36 → NABÍJEJ TEĎ pokud je po 12:36
+      PŘÍKLAD: baterie 21%, konec levného 14:00, potřeba 1.4h → POČKEJ pokud je teprve 10:00
 
    B) NOČNÍ nabíjení (00:00-05:59): Použij analýzu nočního nabíjení výše:
       - Pokud "Doporučená akce" = "NABIJ TEĎ" → aktivuj SAVING_TO_BATTERY
@@ -444,6 +448,120 @@ def nastavit_mod(session: requests.Session, mod: str) -> bool:
 # ============================================================
 # FORMÁTOVÁNÍ CEN PRO CLAUDE PROMPT
 # ============================================================
+
+# ============================================================
+# ANALÝZA DENNÍHO NABÍJENÍ
+# ============================================================
+
+def analyzovat_denni_nabijeni(ceny: dict, stav: dict | None, hodina: int) -> dict | None:
+    """
+    Analyzuje optimální čas pro denní nabíjení baterie ze sítě.
+    Najde konec levného období dynamicky z průběhu cen.
+    Vypočítá potřebný čas nabíjení podle aktuálního SOC.
+    """
+    if not stav or not ceny:
+        return None
+    if not (6 <= hodina <= 21):
+        return None  # Pouze denní okno
+
+    dnes = ceny.get("vsechny_15min", [])
+    if not dnes:
+        return None
+
+    def hod_prumer(h):
+        blok = dnes[h*4:(h+1)*4]
+        return round(sum(blok)/len(blok), 3) if len(blok) == 4 else None
+
+    # Budoucí hodinové ceny od aktuální hodiny
+    budouci = {}
+    for h in range(hodina, 24):
+        c = hod_prumer(h)
+        if c is not None:
+            budouci[h] = c
+
+    if len(budouci) < 3:
+        return None
+
+    # Najdi levné období — hodiny pod mediánem budoucích cen
+    hodnoty = sorted(budouci.values())
+    median = hodnoty[len(hodnoty) // 2]
+    levne_hodiny = {h: c for h, c in budouci.items() if c <= median}
+
+    if not levne_hodiny:
+        return None
+
+    # Průměr levného období
+    prumer_levne = round(sum(levne_hodiny.values()) / len(levne_hodiny), 3)
+
+    # Zlom = první hodina kde cena > průměr_levného × 2.0
+    konec_levneho = max(levne_hodiny.keys())  # výchozí = poslední levná hodina
+    for h in sorted(budouci.keys()):
+        if budouci[h] > prumer_levne * 2.0 and h > hodina:
+            # Najdi poslední levnou hodinu před tímto zlomem
+            levne_pred_zlomem = [lh for lh in levne_hodiny if lh < h]
+            if levne_pred_zlomem:
+                konec_levneho = max(levne_pred_zlomem)
+            break
+
+    # Výpočet potřebného času nabíjení
+    soc = stav.get("baterie_procent", 50)
+    zbyvajici_kwh = round((100 - soc) / 100 * BATERIE_KAPACITA_KWH, 2)
+    cas_nabijeni_h = round(zbyvajici_kwh / 5.5, 2)  # 5.5 kW výkon nabíjení
+
+    # Doporučený čas zahájení
+    zahajeni_h = konec_levneho - cas_nabijeni_h
+    zahajeni_celych = int(zahajeni_h)
+    zahajeni_min = int((zahajeni_h - zahajeni_celych) * 60)
+
+    # Je TEĎ správný čas začít?
+    # Porovnáváme v minutách pro přesnost (agent běží každých 10 min)
+    now = datetime.now(TZ)
+    aktualni_min = hodina * 60 + now.minute
+    zahajeni_min_celkem = zahajeni_celych * 60 + zahajeni_min
+    konec_min_celkem = konec_levneho * 60 + 59
+    nabij_ted = aktualni_min >= zahajeni_min_celkem and aktualni_min <= konec_min_celkem
+
+    # Cena v doporučenou hodinu
+    cena_pri_zahajeni = budouci.get(zahajeni_celych, budouci.get(hodina))
+
+    return {
+        "prumer_levne_czk":     prumer_levne,
+        "konec_levneho_h":      konec_levneho,
+        "zlom_cena":            budouci.get(konec_levneho + 1),
+        "soc_pct":              soc,
+        "zbyvajici_kwh":        zbyvajici_kwh,
+        "cas_nabijeni_h":       cas_nabijeni_h,
+        "zahajeni_h":           zahajeni_celych,
+        "zahajeni_min":         zahajeni_min,
+        "cena_pri_zahajeni":    cena_pri_zahajeni,
+        "nabij_ted":            nabij_ted,
+        "budouci_ceny":         {f"{h:02d}:00": v for h, v in sorted(budouci.items())},
+    }
+
+def formovat_denni_analyzu(a: dict) -> str:
+    """Formátuje analýzu denního nabíjení pro Claude prompt."""
+    if not a:
+        return "Analýza nedostupná."
+
+    akce = "NABÍJEJ TEĎ" if a["nabij_ted"] else f"POČKEJ do {a['zahajeni_h']:02d}:{a['zahajeni_min']:02d}"
+
+    radky = [
+        f"Průměr levného období: {a['prumer_levne_czk']} Kč/kWh",
+        f"Konec levného období: {a['konec_levneho_h']:02d}:00 (pak ceny rostou na ~{a['zlom_cena']} Kč)",
+        f"",
+        f"Baterie: {a['soc_pct']}% → zbývá nabít: {a['zbyvajici_kwh']} kWh",
+        f"Čas nabíjení při 5.5kW: {a['cas_nabijeni_h']}h",
+        f"Doporučené zahájení: {a['zahajeni_h']:02d}:{a['zahajeni_min']:02d} (cena ~{a['cena_pri_zahajeni']} Kč/kWh)",
+        f"Doporučená akce: {akce}",
+        f"",
+        f"Budoucí ceny dnes:",
+    ]
+    for h, c in a["budouci_ceny"].items():
+        marker = " ◀ NYNÍ" if h == f"{a.get('soc_pct', 0):02d}:00" else ""
+        radky.append(f"  {h}: {c} Kč/kWh")
+
+    return "\n".join(radky)
+
 
 # ============================================================
 # ANALÝZA NOČNÍHO NABÍJENÍ
@@ -813,13 +931,19 @@ def main():
     session = prihlasit_se()
     stav   = ziskat_stav_fve(session) if session else None
 
-    # Noční analýza (relevantní jen 22:00-05:00)
+    # Noční analýza (relevantní jen 00:00-05:59)
     nocni_analyza = analyzovat_nocni_nabijeni(ceny, historie, hodina) if ceny else None
     if nocni_analyza:
         if nocni_analyza["vyhodni"]:
-            print(f"   🌙 Noční nabíjení: VYHODNÉ | uspora {nocni_analyza['uspora_czk']} Kč/kWh | cil +{nocni_analyza['cilovy_soc_prirustek']}%")
+            print(f"   🌙 Noční nabíjení: VYHODNÉ | úspora {nocni_analyza['uspora_czk']} Kč/kWh | cíl +{nocni_analyza['cilovy_soc_prirustek']}%")
         else:
-            print(f"   🌙 Noční nabíjení: NEVYHODNÉ | uspora {nocni_analyza['uspora_czk']} Kč/kWh")
+            print(f"   🌙 Noční nabíjení: NEVYHODNÉ | úspora {nocni_analyza['uspora_czk']} Kč/kWh")
+
+    # Denní analýza (relevantní jen 6:00-21:00)
+    denni_analyza = analyzovat_denni_nabijeni(ceny, stav, hodina) if ceny and stav else None
+    if denni_analyza:
+        akce = "NABÍJEJ TEĎ" if denni_analyza["nabij_ted"] else f"čekej do {denni_analyza['zahajeni_h']:02d}:{denni_analyza['zahajeni_min']:02d}"
+        print(f"   ☀️ Denní nabíjení: konec levného {denni_analyza['konec_levneho_h']:02d}:00 | potřeba {denni_analyza['cas_nabijeni_h']}h | {akce}")
 
     # Denní plán — ochrana proti dvojitému odeslání
     if je_denni:
@@ -845,7 +969,7 @@ def main():
         novy_mod, duvod = reaktivni
         print(f"\n⚡ REAKTIVNÍ ZÁSAH: {novy_mod} — {duvod}")
     elif je_hodinovy:
-        novy_mod, duvod = claude_rozhodne(stav, pocasi, ceny, historie, nocni_analyza)
+        novy_mod, duvod = claude_rozhodne(stav, pocasi, ceny, historie, nocni_analyza, denni_analyza)
     else:
         print("\nℹ️ Vše OK — žádná reaktivní změna, hodinový cyklus ještě nenastal")
         return
