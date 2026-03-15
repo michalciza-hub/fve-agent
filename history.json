@@ -1633,5 +1633,24 @@
     "oblacnost_zitrek_pct": 81,
     "slunce_zitrek_h": 7.5,
     "uspech": true
+  },
+  {
+    "cas": "15.03.2026 15:00",
+    "mod": "DEFAULT",
+    "duvod": "FVE vyrábí jen 274W, baterie 68% nabíjí se sama ze sítě. Cena 1.66 Kč střední, večer drahé ceny až 3.7 Kč.",
+    "baterie_pct": 68,
+    "vyroba_w": 274,
+    "spotreba_w": 887,
+    "odber_site_w": 6211,
+    "baterie_w": 5475,
+    "cena_level": "low",
+    "cena_czk": 1.302,
+    "cena_min": 0.64,
+    "cena_max": 3.896,
+    "oblacnost_dnes_pct": 99,
+    "slunce_dnes_h": 0.0,
+    "oblacnost_zitrek_pct": 81,
+    "slunce_zitrek_h": 7.5,
+    "uspech": true
   }
 ]
