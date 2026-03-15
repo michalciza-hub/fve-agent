@@ -931,6 +931,141 @@ def formatovat_historii_pro_claude(historie: list) -> str:
     return "\n".join(radky)
 
 # ============================================================
+# VRSTVA 2 — ALGORITMICKÉ ROZHODOVÁNÍ (bez AI)
+# ============================================================
+
+def algoritmicke_rozhodnuti(stav: dict | None, ceny: dict | None, pocasi: dict | None,
+                             nocni_analyza: dict | None, denni_analyza: dict | None) -> tuple[str, str] | None:
+    """
+    Vrstva 2 — čistý algoritmus bez AI. Pokrývá všechny módy FVE.
+    Vrátí (mod, duvod) pokud je rozhodnutí jasné, jinak None → předá se Claude.
+    """
+    if not stav or not ceny:
+        return None
+
+    soc              = stav.get("baterie_procent", 50)
+    vyroba           = stav.get("vyroba_w", 0)
+    spotreba         = stav.get("spotreba_w", 0)
+    prebytek         = vyroba - spotreba          # + = přebytek FVE, - = deficit
+    cena             = ceny.get("aktualni", 0)
+    oblacnost        = pocasi["dnes"]["oblacnost"] if pocasi else 50
+    oblacnost_zitrek = pocasi["zitrek"]["oblacnost"] if pocasi else 50
+    slunce_zitrek    = pocasi["zitrek"]["slunce_h"] if pocasi else 5
+    predchozi        = nacist_aktualni_mod()
+    hodina           = datetime.now(TZ).hour
+
+    # ================================================================
+    # PRAVIDLO 1: BLOCKING_GRID_OVERFLOW — záporná nebo velmi nízká cena
+    # Zabrání přetokům do sítě za záporné ceny
+    # ================================================================
+    if cena < 0:
+        return "BLOCKING_GRID_OVERFLOW", f"Záporná cena {cena} Kč/kWh — blokuji přetoky"
+
+    # ================================================================
+    # PRAVIDLO 2: Ukončení BLOCKING pokud cena vzrostla
+    # ================================================================
+    if predchozi == "BLOCKING_GRID_OVERFLOW" and cena >= 0.1:
+        return "DEFAULT", f"Cena {cena} Kč/kWh — přetoky opět povoleny"
+
+    # ================================================================
+    # PRAVIDLO 3: USING_FROM_GRID_INSTEAD_OF_BATTERY
+    # Šetři baterii — ber ze sítě pokud je cena nižší než opotřebení baterie
+    # Typicky: noční hodiny kdy cena sítě < náklad na vybití baterie
+    # ================================================================
+    naklad_vybijeni = BATERIE_OPOTREBENI_CZK  # ~1.67 Kč/kWh
+    if (cena < naklad_vybijeni and          # síť je levnější než opotřebení baterie
+        soc > 30 and                         # baterie není kriticky nízká
+        prebytek < 0 and                     # deficit — FVE nestačí pokrýt spotřebu
+        6 <= hodina <= 22):                  # denní/večerní hodiny
+        return "USING_FROM_GRID_INSTEAD_OF_BATTERY", (
+            f"Cena sítě {cena} Kč < opotřebení baterie {naklad_vybijeni} Kč — šetřím baterii"
+        )
+
+    # Ukončení USING_FROM_GRID pokud cena vzrostla nebo baterie nízká
+    if predchozi == "USING_FROM_GRID_INSTEAD_OF_BATTERY":
+        if cena >= naklad_vybijeni or soc <= 25:
+            return "DEFAULT", f"Ukončuji šetření baterie — cena {cena} Kč nebo SOC {soc}%"
+
+    # ================================================================
+    # PRAVIDLO 4: Přebytek FVE — baterie se nabíjí sama
+    # ================================================================
+    if prebytek >= 1500:
+        if predchozi in ("SAVING_TO_BATTERY", "USING_FROM_GRID_INSTEAD_OF_BATTERY"):
+            return "DEFAULT", f"FVE přebytek {prebytek}W — baterie se nabíjí sama zadarmo"
+
+    # ================================================================
+    # PRAVIDLO 5: SELLING_INSTEAD_OF_BATTERY_CHARGE
+    # Prodej přebytku FVE do sítě místo nabíjení baterie
+    # Použij pokud: vysoká cena výkupu + baterie je dostatečně nabitá
+    # + zítra bude slunce (baterie se nabije sama)
+    # ================================================================
+    if (prebytek >= 500 and                       # FVE vyrábí víc než spotřeba
+        cena >= VYKUP_PRAH_CZK and                # cena výkupu je výhodná
+        soc >= 60 and                             # baterie dostatečně nabitá
+        slunce_zitrek >= 5 and                    # zítra bude slunce → baterie se nabije
+        6 <= hodina <= 16):                       # pouze přes den kdy FVE vyrábí
+        return "SELLING_INSTEAD_OF_BATTERY_CHARGE", (
+            f"Přebytek {prebytek}W, cena {cena} Kč > {VYKUP_PRAH_CZK} Kč, "
+            f"baterie {soc}%, zítra {slunce_zitrek}h slunce"
+        )
+
+    # Ukončení SELLING pokud cena klesla nebo baterie nízká
+    if predchozi == "SELLING_INSTEAD_OF_BATTERY_CHARGE":
+        if cena < VYKUP_PRAH_CZK or soc < 40 or prebytek < 200:
+            return "DEFAULT", f"Ukončuji prodej — cena {cena} Kč nebo SOC {soc}% nebo přebytek {prebytek}W"
+
+    # ================================================================
+    # PRAVIDLO 6: NOČNÍ nabíjení (00:00-05:59) — SAVING_TO_BATTERY
+    # ================================================================
+    if nocni_analyza:
+        cil_soc = min(soc + nocni_analyza.get("cilovy_soc_prirustek", 30), BATERIE_MAX_NOCNI_PCT)
+
+        if nocni_analyza.get("nabij_ted") and nocni_analyza.get("vyhodni"):
+            if soc >= cil_soc:
+                return "DEFAULT", f"Noční nabíjení dokončeno — baterie {soc}% dosáhla cíle {int(cil_soc)}%"
+            return "SAVING_TO_BATTERY", (
+                f"Noční nabíjení: {nocni_analyza['nejlevnejsi_cena_czk']} Kč/kWh, "
+                f"spread {round(nocni_analyza['ranni_spicka_czk'] - nocni_analyza['nejlevnejsi_cena_czk'], 2)} Kč, "
+                f"cíl {int(cil_soc)}%"
+            )
+        if nocni_analyza.get("vyhodni") and not nocni_analyza.get("nabij_ted"):
+            return "DEFAULT", (
+                f"Čekám na nejlevnější noční hodinu {nocni_analyza['nejlevnejsi_hodina']:02d}:00 "
+                f"({nocni_analyza['nejlevnejsi_cena_czk']} Kč/kWh)"
+            )
+        if not nocni_analyza.get("vyhodni"):
+            return "DEFAULT", f"Noční nabíjení nevýhodné — spread {nocni_analyza.get('uspora_czk')} Kč < min {NOCNI_NABIJENI_MIN_SPREAD} Kč"
+
+    # ================================================================
+    # PRAVIDLO 7: DENNÍ nabíjení (6:00-21:00) — SAVING_TO_BATTERY
+    # ================================================================
+    if denni_analyza:
+        if not denni_analyza.get("ekonomicky_vyhodni"):
+            if predchozi == "SAVING_TO_BATTERY":
+                return "DEFAULT", f"Denní nabíjení nevýhodné — spread {denni_analyza.get('spread_czk')} Kč < min {NOCNI_NABIJENI_MIN_SPREAD} Kč"
+            return None  # Nechej na Claude
+
+        if denni_analyza.get("nabij_ted"):
+            if soc >= 90:
+                return "DEFAULT", f"Baterie {soc}% — dostatečně nabitá, nabíjení není třeba"
+            if oblacnost >= 70 or prebytek < 500:
+                return "SAVING_TO_BATTERY", (
+                    f"Denní nabíjení: {denni_analyza['prumer_levne_czk']} Kč/kWh, "
+                    f"spread {denni_analyza['spread_czk']} Kč, "
+                    f"oblačnost {oblacnost}%, konec levného {denni_analyza['konec_levneho_h']:02d}:00"
+                )
+        else:
+            # Ještě není čas — pokud nabíjíme, zastav
+            if predchozi == "SAVING_TO_BATTERY":
+                return "DEFAULT", f"Čekám na optimální čas nabíjení {denni_analyza['zahajeni_h']:02d}:{denni_analyza['zahajeni_min']:02d}"
+
+    # ================================================================
+    # Žádné jasné pravidlo → předej Claude AI
+    # ================================================================
+    return None
+
+
+# ============================================================
 # MAIN
 # ============================================================
 
@@ -944,9 +1079,10 @@ def main():
     print(f"🌞 FVE Agent — {cas}")
     print("=" * 55)
 
-    force_run    = os.environ.get("FORCE_RUN", "").lower() == "true"
-    je_hodinovy  = (minuta < 5) or (30 <= minuta < 35) or force_run
-    je_denni     = (hodina == 14 and minuta < 20)
+    force_run      = os.environ.get("FORCE_RUN", "").lower() == "true"
+    je_hodinovy    = (minuta < 5) or (30 <= minuta < 35) or force_run   # Claude AI — každých 30 min
+    je_algoritmicky = True   # Vrstva 2 — každý běh (každých 10 min)
+    je_denni       = (hodina == 14 and minuta < 20)
 
     # Načíst historii
     historie = nacist_historii()
@@ -988,17 +1124,29 @@ def main():
         else:
             print("📅 Denní plán dnes již odeslán — přeskakuji")
 
-    # Reaktivní kontrola — každých 5 minut
+    # VRSTVA 1: Reaktivní pravidla (každý běh)
     reaktivni = reaktivni_kontrola(stav, ceny)
 
     if reaktivni:
         novy_mod, duvod = reaktivni
-        print(f"\n⚡ REAKTIVNÍ ZÁSAH: {novy_mod} — {duvod}")
-    elif je_hodinovy:
-        novy_mod, duvod = claude_rozhodne(stav, pocasi, ceny, historie, nocni_analyza, denni_analyza)
+        print(f"\n⚡ VRSTVA 1 — REAKTIVNÍ ZÁSAH: {novy_mod} — {duvod}")
+
     else:
-        print("\nℹ️ Vše OK — žádná reaktivní změna, hodinový cyklus ještě nenastal")
-        return
+        # VRSTVA 2: Algoritmické rozhodování (každý běh = každých 10 min)
+        algo = algoritmicke_rozhodnuti(stav, ceny, pocasi, nocni_analyza, denni_analyza)
+
+        if algo:
+            novy_mod, duvod = algo
+            print(f"\n🔧 VRSTVA 2 — ALGORITMUS: {novy_mod} — {duvod}")
+
+        elif je_hodinovy:
+            # VRSTVA 3: Claude AI (každých 30 min — jen pokud algoritmus nerozhodl)
+            novy_mod, duvod = claude_rozhodne(stav, pocasi, ceny, historie, nocni_analyza, denni_analyza)
+            print(f"\n🧠 VRSTVA 3 — CLAUDE AI: {novy_mod} — {duvod}")
+
+        else:
+            print("\nℹ️ Algoritmus: žádná změna potřeba, Claude AI ještě nenastal")
+            return
 
     if not session:
         telegram(f"⚠️ <b>FVE Agent — {cas}</b>\n\n❌ Nelze se přihlásit na portál!")
@@ -1042,7 +1190,7 @@ def main():
         print(f"ℹ️ Mód beze změny ({MODY.get(novy_mod, novy_mod)}) — bez notifikace")
 
     # Uložit záznam do historie (jen při hodinovém cyklu nebo reaktivním zásahu)
-    if je_hodinovy or reaktivni:
+    if je_hodinovy or reaktivni or algo:
         zaznam = {
             "cas":                  cas,
             "mod":                  novy_mod,
