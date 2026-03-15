@@ -491,13 +491,13 @@ def analyzovat_denni_nabijeni(ceny: dict, stav: dict | None, hodina: int) -> dic
     if len(budouci) < 3:
         return None
 
-    # Najdi levné období — hodiny pod mediánem budoucích cen
-    hodnoty = sorted(budouci.values())
-    median = hodnoty[len(hodnoty) // 2]
-    levne_hodiny = {h: c for h, c in budouci.items() if c <= median}
+    # Najdi skutečně levné hodiny — pod absolutním prahem 1.5 Kč
+    # (ne relativní medián — ten by vybral "levné" i z drahých hodin)
+    ABSOLUTNI_PRAH_LEVNE = 1.5  # Kč/kWh — pod tímto je nabíjení potenciálně výhodné
+    levne_hodiny = {h: c for h, c in budouci.items() if c < ABSOLUTNI_PRAH_LEVNE}
 
     if not levne_hodiny:
-        return None
+        return None  # Žádné skutečně levné hodiny dnes — analýza nedává smysl
 
     # Průměr levného období
     prumer_levne = round(sum(levne_hodiny.values()) / len(levne_hodiny), 3)
