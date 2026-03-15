@@ -585,7 +585,7 @@ def formovat_denni_analyzu(a: dict) -> str:
         f"Budoucí ceny dnes:",
     ]
     for h, c in a["budouci_ceny"].items():
-        marker = " ◀ NYNÍ" if h == f"{a.get('soc_pct', 0):02d}:00" else ""
+        marker = " ◀ NYNÍ" if h == f"{int(a.get('soc_pct', 0)):02d}:00" else ""
         radky.append(f"  {h}: {c} Kč/kWh")
 
     return "\n".join(radky)
