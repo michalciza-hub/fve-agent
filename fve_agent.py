@@ -312,8 +312,11 @@ Aktuální cenová hladina: {ceny.get("aktualni_level", "?").upper() if ceny els
 DŮLEŽITÉ: Hodiny označené "✓ proběhlo" jsou MINULOST — nelze je využít!
 {formovat_ceny_pro_prompt(ceny, hodina) if ceny else "Nedostupné"}
 
+## Historické profily spotřeby a výroby FVE
+{vypocitat_profily_z_historie(historie)}
+
 ## Historie posledních rozhodnutí (učení z minulosti)
-Formát: čas | baterie% | FVE výroba | cena | oblačnost zítra → zvolený mód (důvod)
+Formát: čas | baterie% | tok baterie | FVE výroba | cena[level] | zítra oblačnost/slunce → mód (důvod)
 {historie_text}
 
 ## Analýza nočního nabíjení
@@ -708,6 +711,54 @@ def commitnout_historii():
             print("📚 Historie: žádné změny k commitnutí")
     except Exception as e:
         print(f"📚 Historie: chyba commitu — {e}")
+
+def vypocitat_profily_z_historie(historie: list) -> str:
+    """Vypočítá průměrné hodinové profily spotřeby a výroby FVE z historie."""
+    if len(historie) < 24:
+        return "Nedostatek dat pro profily (min. 24 záznamů)."
+
+    from collections import defaultdict
+    spotreba_hod  = defaultdict(list)
+    vyroba_hod    = defaultdict(list)
+    baterie_hod   = defaultdict(list)
+
+    for z in historie:
+        cas_str = z.get("cas", "")
+        try:
+            h = int(cas_str.split(" ")[-1].split(":")[0])
+        except:
+            continue
+        if z.get("spotreba_w") is not None:
+            spotreba_hod[h].append(z["spotreba_w"])
+        if z.get("vyroba_w") is not None:
+            vyroba_hod[h].append(z["vyroba_w"])
+        if z.get("baterie_w") is not None:
+            baterie_hod[h].append(z["baterie_w"])
+
+    radky = ["Průměrný hodinový profil (z historie):"]
+    radky.append(f"{'Hod':>4} | {'Spotřeba':>8} | {'FVE':>7} | {'Baterie':>8} | Bilance")
+    radky.append("-" * 55)
+
+    for h in range(24):
+        avg_s = round(sum(spotreba_hod[h]) / len(spotreba_hod[h])) if spotreba_hod[h] else None
+        avg_v = round(sum(vyroba_hod[h])   / len(vyroba_hod[h]))   if vyroba_hod[h]   else None
+        avg_b = round(sum(baterie_hod[h])  / len(baterie_hod[h]))  if baterie_hod[h]  else None
+        bilance = round(avg_v - avg_s) if avg_v is not None and avg_s is not None else None
+        bil_str = f"{bilance:+d}W" if bilance is not None else "?"
+        radky.append(
+            f"  {h:02d}:00 | {str(avg_s)+'W':>8} | {str(avg_v)+'W':>7} | {str(avg_b)+'W':>8} | {bil_str}"
+        )
+
+    # Přidej denní průměry
+    vse_spotreba = [v for vals in spotreba_hod.values() for v in vals]
+    vse_vyroba   = [v for vals in vyroba_hod.values()   for v in vals]
+    if vse_spotreba:
+        radky.append(f"\nPrůměrná spotřeba: {round(sum(vse_spotreba)/len(vse_spotreba))}W")
+    if vse_vyroba:
+        radky.append(f"Průměrná výroba FVE: {round(sum(vse_vyroba)/len(vse_vyroba))}W")
+
+    return "\n".join(radky)
+
 
 def formatovat_historii_pro_claude(historie: list) -> str:
     """Formátuje posledních 48 hodinových záznamů pro Claude prompt."""
