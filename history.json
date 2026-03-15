@@ -1614,5 +1614,24 @@
     "oblacnost_zitrek_pct": 73,
     "slunce_zitrek_h": 8.3,
     "uspech": true
+  },
+  {
+    "cas": "15.03.2026 14:30",
+    "mod": "SAVING_TO_BATTERY",
+    "duvod": "Baterie 44%, cena 1.01 Kč levná, večer velmi drahé ceny 3.7+ Kč, zítra lepší slunce 7.5h",
+    "baterie_pct": 44,
+    "vyroba_w": 278,
+    "spotreba_w": 1809,
+    "odber_site_w": 7091,
+    "baterie_w": 5439,
+    "cena_level": "low",
+    "cena_czk": 1.012,
+    "cena_min": 0.64,
+    "cena_max": 3.896,
+    "oblacnost_dnes_pct": 99,
+    "slunce_dnes_h": 0.0,
+    "oblacnost_zitrek_pct": 81,
+    "slunce_zitrek_h": 7.5,
+    "uspech": true
   }
 ]
