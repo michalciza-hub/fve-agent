@@ -34,7 +34,8 @@ TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 LATITUDE  = float(os.environ.get("FVE_LAT", "50.0755"))
 LONGITUDE = float(os.environ.get("FVE_LON", "14.4378"))
 
-VYKUP_PRAH_CZK   = 1.5    # Kč/kWh — pod touto cenou se prodej do sítě nevyplatí (opotřebení bat. ~0.6 + marže)
+VYKUP_PRAH_CZK   = 1.5    # Kč/kWh — pod touto cenou se prodej z baterie nevyplatí
+PRETOK_PRAH_CZK  = 0.45   # Kč/kWh — výkupní cena dodavatele, pod tím přetok prodělává
 BATERIE_MIN_PCT  = 20     # % — pod touto hodnotou zastav prodej z baterie
 CENA_DRAHA_CZK   = 3.5    # Kč/kWh — nad touto cenou považujeme elektřinu za drahou (špička)
 CENA_LEVNA_CZK   = 0.5    # Kč/kWh — pod touto cenou považujeme elektřinu za levnou (přebytek FVE)
@@ -955,17 +956,17 @@ def algoritmicke_rozhodnuti(stav: dict | None, ceny: dict | None, pocasi: dict |
     hodina           = datetime.now(TZ).hour
 
     # ================================================================
-    # PRAVIDLO 1: BLOCKING_GRID_OVERFLOW — záporná nebo velmi nízká cena
-    # Zabrání přetokům do sítě za záporné ceny
+    # PRAVIDLO 1: BLOCKING_GRID_OVERFLOW — cena pod výkupním prahem
+    # Přetok do sítě se nevyplatí pokud cena < výkupní práh dodavatele (0.45 Kč)
     # ================================================================
-    if cena < 0:
-        return "BLOCKING_GRID_OVERFLOW", f"Záporná cena {cena} Kč/kWh — blokuji přetoky"
+    if cena < PRETOK_PRAH_CZK:
+        return "BLOCKING_GRID_OVERFLOW", f"Cena {cena} Kč < výkupní práh {PRETOK_PRAH_CZK} Kč — blokuji přetoky"
 
     # ================================================================
-    # PRAVIDLO 2: Ukončení BLOCKING pokud cena vzrostla
+    # PRAVIDLO 2: Ukončení BLOCKING pokud cena vzrostla nad práh
     # ================================================================
-    if predchozi == "BLOCKING_GRID_OVERFLOW" and cena >= 0.1:
-        return "DEFAULT", f"Cena {cena} Kč/kWh — přetoky opět povoleny"
+    if predchozi == "BLOCKING_GRID_OVERFLOW" and cena >= PRETOK_PRAH_CZK:
+        return "DEFAULT", f"Cena {cena} Kč/kWh překročila práh {PRETOK_PRAH_CZK} Kč — přetoky opět povoleny"
 
     # ================================================================
     # PRAVIDLO 3: USING_FROM_GRID_INSTEAD_OF_BATTERY
@@ -996,22 +997,19 @@ def algoritmicke_rozhodnuti(stav: dict | None, ceny: dict | None, pocasi: dict |
     # ================================================================
     # PRAVIDLO 5: SELLING_INSTEAD_OF_BATTERY_CHARGE
     # Prodej přebytku FVE do sítě místo nabíjení baterie
-    # Použij pokud: vysoká cena výkupu + baterie je dostatečně nabitá
-    # + zítra bude slunce (baterie se nabije sama)
+    # Pouze pokud je baterie již plná (≥95%) — baterie má přednost!
     # ================================================================
     if (prebytek >= 500 and                       # FVE vyrábí víc než spotřeba
         cena >= VYKUP_PRAH_CZK and                # cena výkupu je výhodná
-        soc >= 60 and                             # baterie dostatečně nabitá
-        slunce_zitrek >= 5 and                    # zítra bude slunce → baterie se nabije
+        soc >= 95 and                             # baterie PLNÁ — teprve pak prodáváme
         6 <= hodina <= 16):                       # pouze přes den kdy FVE vyrábí
         return "SELLING_INSTEAD_OF_BATTERY_CHARGE", (
-            f"Přebytek {prebytek}W, cena {cena} Kč > {VYKUP_PRAH_CZK} Kč, "
-            f"baterie {soc}%, zítra {slunce_zitrek}h slunce"
+            f"Baterie plná {soc}%, přebytek {prebytek}W, cena {cena} Kč — prodávám do sítě"
         )
 
-    # Ukončení SELLING pokud cena klesla nebo baterie nízká
+    # Ukončení SELLING pokud baterie přestala být plná nebo cena klesla
     if predchozi == "SELLING_INSTEAD_OF_BATTERY_CHARGE":
-        if cena < VYKUP_PRAH_CZK or soc < 40 or prebytek < 200:
+        if cena < VYKUP_PRAH_CZK or soc < 85 or prebytek < 200:
             return "DEFAULT", f"Ukončuji prodej — cena {cena} Kč nebo SOC {soc}% nebo přebytek {prebytek}W"
 
     # ================================================================
