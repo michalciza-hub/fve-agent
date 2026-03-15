@@ -146,12 +146,18 @@ def ziskat_stav_fve(session: requests.Session) -> dict | None:
         # Skutečné názvy polí z API (ověřeno z Network Response):
         # batteryStateOfCharge, photovoltaicPower, consumptionPower, gridPower
         # gridPower > 0 = odběr ze sítě, < 0 = přetok do sítě
+        def safe_float(val, default=0):
+            try:
+                return float(val) if val is not None else default
+            except (TypeError, ValueError):
+                return default
+
         stav = {
-            "baterie_procent": data.get("batteryStateOfCharge", 0),
-            "vyroba_w":        data.get("photovoltaicPower", 0),
-            "spotreba_w":      data.get("consumptionPower", 0),
-            "odber_site_w":    data.get("gridPower", 0),       # + = odběr, - = přetok
-            "baterie_w":       data.get("batteryPower", 0),    # výkon baterie (+ nabíjení)
+            "baterie_procent": safe_float(data.get("batteryStateOfCharge"), 0),
+            "vyroba_w":        safe_float(data.get("photovoltaicPower"), 0),
+            "spotreba_w":      safe_float(data.get("consumptionPower"), 0),
+            "odber_site_w":    safe_float(data.get("gridPower"), 0),       # + = odběr, - = přetok
+            "baterie_w":       safe_float(data.get("batteryPower"), 0),    # výkon baterie
             "aktivni_mod":     data.get("statusActiveControl") or "DEFAULT",
         }
         pretok = max(0, -stav["odber_site_w"])
