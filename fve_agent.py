@@ -1149,7 +1149,9 @@ def main():
             print(f"\n🧠 VRSTVA 3 — CLAUDE AI: {novy_mod} — {duvod}")
 
         else:
-            print("\nℹ️ Algoritmus: žádná změna potřeba, Claude AI ještě nenastal")
+            # Algoritmus nerozhodl a není čas na Claude → udržuj aktuální mód
+            predchozi = nacist_aktualni_mod()
+            print(f"\nℹ️ Algoritmus: udržuji aktuální mód {MODY.get(predchozi, predchozi)}, Claude AI nastane v příštím cyklu")
             return
 
     if not session:
