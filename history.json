@@ -1766,5 +1766,24 @@
     "oblacnost_zitrek_pct": 84,
     "slunce_zitrek_h": 7.9,
     "uspech": true
+  },
+  {
+    "cas": "15.03.2026 18:00",
+    "mod": "DEFAULT",
+    "duvod": "Stav FVE a baterie nedostupný - nelze rozhodnout bez aktuálních dat o nabití baterie",
+    "baterie_pct": null,
+    "vyroba_w": null,
+    "spotreba_w": null,
+    "odber_site_w": null,
+    "baterie_w": null,
+    "cena_level": "high",
+    "cena_czk": 3.576,
+    "cena_min": 0.64,
+    "cena_max": 3.896,
+    "oblacnost_dnes_pct": 100,
+    "slunce_dnes_h": 0.0,
+    "oblacnost_zitrek_pct": 84,
+    "slunce_zitrek_h": 7.9,
+    "uspech": true
   }
 ]
