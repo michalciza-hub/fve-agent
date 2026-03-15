@@ -38,10 +38,12 @@ VYKUP_PRAH_CZK   = 1.5    # Kč/kWh — pod touto cenou se prodej do sítě nevy
 BATERIE_MIN_PCT  = 20     # % — pod touto hodnotou zastav prodej z baterie
 CENA_DRAHA_CZK   = 3.5    # Kč/kWh — nad touto cenou považujeme elektřinu za drahou (špička)
 CENA_LEVNA_CZK   = 0.5    # Kč/kWh — pod touto cenou považujeme elektřinu za levnou (přebytek FVE)
-BATERIE_OPOTREBENI_CZK = 0.6  # Kč/kWh — náklad na cyklus baterie
-BATERIE_KAPACITA_KWH  = 10.0  # kWh — využitelná kapacita baterie
-NOCNI_NABIJENI_MIN_USPORA = 0.5  # Kč/kWh — minimální úspora pro spuštění nočního nabíjení
-BATERIE_MAX_NOCNI_PCT = 80   # % — maximální nabití přes noc (nechej rezervu pro FVE)
+BATERIE_OPOTREBENI_CZK = 1.67  # Kč/kWh — skutečné opotřebení článků (90000 Kč / 54000 kWh)
+BATERIE_UCINNOST      = 0.85   # round-trip účinnost střídač+baterie
+BATERIE_DISTRIBUCE_BONUS = 0.40  # Kč/kWh — rozdíl VT/NT distribuce ve prospěch nabíjení
+BATERIE_KAPACITA_KWH  = 10.0   # kWh — využitelná kapacita baterie
+NOCNI_NABIJENI_MIN_SPREAD = 1.8  # Kč/kWh — minimální spread spot cen aby se nabíjení vyplatilo
+BATERIE_MAX_NOCNI_PCT = 80     # % — maximální nabití přes noc (nechej rezervu pro FVE)
 HISTORIE_SOUBOR = "history.json"
 MOD_SOUBOR      = "current_mode.json"
 HISTORIE_MAX_ZAZNAMU = 30 * 24  # 30 dní po hodinách = max 720 záznamů
@@ -503,6 +505,12 @@ def analyzovat_denni_nabijeni(ceny: dict, stav: dict | None, hodina: int) -> dic
                 konec_levneho = max(levne_pred_zlomem)
             break
 
+    # Ověř ekonomickou výhodnost — spread mezi špičkou a levným obdobím
+    spicka_cena = max(budouci.values()) if budouci else 0
+    spread = round(spicka_cena - prumer_levne, 3)
+    naklady_na_kwh = round(prumer_levne / BATERIE_UCINNOST + BATERIE_OPOTREBENI_CZK - BATERIE_DISTRIBUCE_BONUS, 3)
+    ekonomicky_vyhodni = spread >= NOCNI_NABIJENI_MIN_SPREAD
+
     # Výpočet potřebného času nabíjení
     soc = stav.get("baterie_procent", 50)
     zbyvajici_kwh = round((100 - soc) / 100 * BATERIE_KAPACITA_KWH, 2)
@@ -528,6 +536,10 @@ def analyzovat_denni_nabijeni(ceny: dict, stav: dict | None, hodina: int) -> dic
         "prumer_levne_czk":     prumer_levne,
         "konec_levneho_h":      konec_levneho,
         "zlom_cena":            budouci.get(konec_levneho + 1),
+        "spicka_cena":          spicka_cena,
+        "spread_czk":           spread,
+        "naklady_na_kwh":       naklady_na_kwh,
+        "ekonomicky_vyhodni":   ekonomicky_vyhodni,
         "soc_pct":              soc,
         "zbyvajici_kwh":        zbyvajici_kwh,
         "cas_nabijeni_h":       cas_nabijeni_h,
@@ -543,10 +555,19 @@ def formovat_denni_analyzu(a: dict) -> str:
     if not a:
         return "Analýza nedostupná."
 
-    akce = "NABÍJEJ TEĎ" if a["nabij_ted"] else f"POČKEJ do {a['zahajeni_h']:02d}:{a['zahajeni_min']:02d}"
+    if not a.get('ekonomicky_vyhodni'):
+        akce = f"NENABÍJEJ — spread {a.get('spread_czk')} Kč je pod minimem {NOCNI_NABIJENI_MIN_SPREAD} Kč"
+    elif a["nabij_ted"]:
+        akce = "NABÍJEJ TEĎ"
+    else:
+        akce = f"POČKEJ do {a['zahajeni_h']:02d}:{a['zahajeni_min']:02d}"
 
+    ekonomika = "VYPLATÍ SE" if a.get("ekonomicky_vyhodni") else f"NEVYPLATÍ SE (spread {a.get('spread_czk')} Kč < min {NOCNI_NABIJENI_MIN_SPREAD} Kč)"
     radky = [
         f"Průměr levného období: {a['prumer_levne_czk']} Kč/kWh",
+        f"Večerní špička: {a.get('spicka_cena')} Kč/kWh | Spread: {a.get('spread_czk')} Kč/kWh",
+        f"Skutečné náklady na 1 kWh z baterie: {a.get('naklady_na_kwh')} Kč (opotřebení+ztráty-distribuce)",
+        f"Ekonomické hodnocení: {ekonomika}",
         f"Konec levného období: {a['konec_levneho_h']:02d}:00 (pak ceny rostou na ~{a['zlom_cena']} Kč)",
         f"",
         f"Baterie: {a['soc_pct']}% → zbývá nabít: {a['zbyvajici_kwh']} kWh",
@@ -602,9 +623,12 @@ def analyzovat_nocni_nabijeni(ceny: dict, historie: list, hodina: int) -> dict |
     nejlevnejsi_hodina = min(nocni_ceny, key=nocni_ceny.get)
     nejlevnejsi_cena   = nocni_ceny[nejlevnejsi_hodina]
 
-    # --- Úspora ---
-    uspora = round(ranni_spicka - nejlevnejsi_cena - BATERIE_OPOTREBENI_CZK, 3)
-    vyhodni = uspora >= NOCNI_NABIJENI_MIN_USPORA
+    # --- Skutečné náklady na 1 kWh z baterie (správný výpočet) ---
+    # Nabití 1 kWh do baterie stojí: cena_nakupu / účinnost (ztráty konverze)
+    # + opotřebení článků - bonus distribuce VT/NT
+    naklady_na_kwh = round(nejlevnejsi_cena / BATERIE_UCINNOST + BATERIE_OPOTREBENI_CZK - BATERIE_DISTRIBUCE_BONUS, 3)
+    uspora = round(ranni_spicka - naklady_na_kwh, 3)
+    vyhodni = uspora >= 0 and (ranni_spicka - nejlevnejsi_cena) >= NOCNI_NABIJENI_MIN_SPREAD
 
     # --- Odhad potřebné energie z historie ---
     ranni_zaznamy = [z for z in historie
@@ -666,7 +690,9 @@ def formovat_nocni_analyzu(a: dict) -> str:
         f"Ranní špička zítra (6-9h): {a['ranni_spicka_czk']} Kč/kWh",
         f"Nejlevnější noční hodina: {a['nejlevnejsi_hodina']:02d}:00 = {a['nejlevnejsi_cena_czk']} Kč/kWh",
         f"Aktuální noční cena: {a.get('aktualni_nocni_cena','?')} Kč/kWh",
-        f"Úspora po opotřebení baterie: {a['uspora_czk']} Kč/kWh",
+        f"Skutečné náklady na 1 kWh z baterie: {round(a['nejlevnejsi_cena_czk']/BATERIE_UCINNOST + BATERIE_OPOTREBENI_CZK - BATERIE_DISTRIBUCE_BONUS, 2)} Kč",
+        f"Spread (špička - levná): {round(a['ranni_spicka_czk'] - a['nejlevnejsi_cena_czk'], 2)} Kč/kWh (min. {NOCNI_NABIJENI_MIN_SPREAD} Kč)",
+        f"Úspora: {a['uspora_czk']} Kč/kWh",
         f"Vyhodnocení: {vyhodni}",
         f"Doporučená akce: {cas_akce}",
         "",
