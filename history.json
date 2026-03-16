@@ -2735,5 +2735,24 @@
     "oblacnost_zitrek_pct": 18,
     "slunce_zitrek_h": 10.7,
     "uspech": true
+  },
+  {
+    "cas": "16.03.2026 05:30",
+    "mod": "DEFAULT",
+    "duvod": "Standardní provoz — žádné levné hodiny k dispozici",
+    "baterie_pct": 10.0,
+    "vyroba_w": 0.0,
+    "spotreba_w": 722.0,
+    "odber_site_w": 706.0,
+    "baterie_w": 115.0,
+    "cena_level": "high",
+    "cena_czk": 3.502,
+    "cena_min": 0.351,
+    "cena_max": 4.854,
+    "oblacnost_dnes_pct": 91,
+    "slunce_dnes_h": 6.4,
+    "oblacnost_zitrek_pct": 13,
+    "slunce_zitrek_h": 10.7,
+    "uspech": true
   }
 ]
