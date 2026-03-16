@@ -617,10 +617,12 @@ def analyzovat_nocni_nabijeni(ceny: dict, historie: list, hodina: int) -> dict |
         return None
     ranni_spicka = round(sum(ranni_ceny) / len(ranni_ceny), 3)
 
-    # --- Nejlevnější noční hodiny (00:00-05:59) ze zítřejších cen ---
+    # --- Nejlevnější noční hodiny (00:00-05:59) z DNEŠNÍCH cen ---
+    # Jsme v noci 00:00-05:59 → ceny jsou v hoursToday (dnes), ne hoursTomorrow
+    # hoursTomorrow = zítřejší den (po dnešní noci)
     nocni_ceny = {}
     for h in range(0, 6):
-        c = hod_prumer(zitrek, h)
+        c = hod_prumer(dnes, h)
         if c is not None:
             nocni_ceny[h] = c
 
