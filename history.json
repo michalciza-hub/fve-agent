@@ -2830,5 +2830,24 @@
     "oblacnost_zitrek_pct": 13,
     "slunce_zitrek_h": 10.7,
     "uspech": true
+  },
+  {
+    "cas": "16.03.2026 07:00",
+    "mod": "DEFAULT",
+    "duvod": "Cena 3.32 Kč drahá, čekám na levné období od 10:00 (0.43 Kč). Baterie nabíjím optimálně od 10:21.",
+    "baterie_pct": 10.0,
+    "vyroba_w": 0.0,
+    "spotreba_w": 1727.0,
+    "odber_site_w": 1683.0,
+    "baterie_w": 116.0,
+    "cena_level": "high",
+    "cena_czk": 3.838,
+    "cena_min": 0.351,
+    "cena_max": 4.854,
+    "oblacnost_dnes_pct": 91,
+    "slunce_dnes_h": 6.4,
+    "oblacnost_zitrek_pct": 13,
+    "slunce_zitrek_h": 10.7,
+    "uspech": true
   }
 ]
