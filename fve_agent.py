@@ -966,8 +966,14 @@ def algoritmicke_rozhodnuti(stav: dict | None, ceny: dict | None, pocasi: dict |
     # ================================================================
     # PRAVIDLO 1: BLOCKING_GRID_OVERFLOW — cena pod výkupním prahem
     # Přetok do sítě se nevyplatí pokud cena < výkupní práh dodavatele (0.45 Kč)
+    # VÝJIMKA: Pokud baterie není nabitá (< 80%) a FVE vyrábí → nechej baterii nabít
     # ================================================================
+    fve_vyrabi = vyroba > 500
+    baterie_potrebuje_nabijeni = soc < 80
     if cena < PRETOK_PRAH_CZK:
+        if fve_vyrabi and baterie_potrebuje_nabijeni:
+            # Baterie má přednost — nechej ji nabít z FVE, přetoky zablokuj až bude plná
+            return "DEFAULT", f"Cena {cena} Kč nízká ale baterie {soc}% — nabíjím z FVE přednostně"
         return "BLOCKING_GRID_OVERFLOW", f"Cena {cena} Kč < výkupní práh {PRETOK_PRAH_CZK} Kč — blokuji přetoky"
 
     # ================================================================
