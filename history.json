@@ -3001,5 +3001,24 @@
     "oblacnost_zitrek_pct": 12,
     "slunce_zitrek_h": 10.7,
     "uspech": true
+  },
+  {
+    "cas": "16.03.2026 10:50",
+    "mod": "SAVING_TO_BATTERY",
+    "duvod": "Denní nabíjení: 0.781 Kč/kWh, spread 3.652 Kč, oblačnost 95%, konec levného 12:00",
+    "baterie_pct": 28.0,
+    "vyroba_w": 535.0,
+    "spotreba_w": 815.0,
+    "odber_site_w": 5724.0,
+    "baterie_w": 5426.0,
+    "cena_level": "low",
+    "cena_czk": 0.489,
+    "cena_min": 0.351,
+    "cena_max": 4.854,
+    "oblacnost_dnes_pct": 95,
+    "slunce_dnes_h": 4.6,
+    "oblacnost_zitrek_pct": 12,
+    "slunce_zitrek_h": 10.7,
+    "uspech": true
   }
 ]
