@@ -2868,5 +2868,24 @@
     "oblacnost_zitrek_pct": 13,
     "slunce_zitrek_h": 10.7,
     "uspech": true
+  },
+  {
+    "cas": "16.03.2026 08:00",
+    "mod": "DEFAULT",
+    "duvod": "Cena 2.43 Kč střední, čekám na levné období od 10:00 (0.43 Kč). Baterie se nabíjí sama z FVE.",
+    "baterie_pct": 10.0,
+    "vyroba_w": 356.0,
+    "spotreba_w": 2387.0,
+    "odber_site_w": 1879.0,
+    "baterie_w": 119.0,
+    "cena_level": "medium",
+    "cena_czk": 3.135,
+    "cena_min": 0.351,
+    "cena_max": 4.854,
+    "oblacnost_dnes_pct": 91,
+    "slunce_dnes_h": 6.4,
+    "oblacnost_zitrek_pct": 13,
+    "slunce_zitrek_h": 10.7,
+    "uspech": true
   }
 ]
