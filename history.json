@@ -3210,5 +3210,24 @@
     "oblacnost_zitrek_pct": 12,
     "slunce_zitrek_h": 10.7,
     "uspech": true
+  },
+  {
+    "cas": "16.03.2026 12:30",
+    "mod": "USING_FROM_GRID_INSTEAD_OF_BATTERY",
+    "duvod": "Cena sítě 0.801 Kč < opotřebení baterie 1.67 Kč — šetřím baterii",
+    "baterie_pct": 47.0,
+    "vyroba_w": 532.0,
+    "spotreba_w": 784.0,
+    "odber_site_w": 5774.0,
+    "baterie_w": 5463.0,
+    "cena_level": "low",
+    "cena_czk": 0.801,
+    "cena_min": 0.351,
+    "cena_max": 4.854,
+    "oblacnost_dnes_pct": 94,
+    "slunce_dnes_h": 5.8,
+    "oblacnost_zitrek_pct": 12,
+    "slunce_zitrek_h": 10.7,
+    "uspech": true
   }
 ]
