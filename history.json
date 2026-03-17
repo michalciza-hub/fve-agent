@@ -5870,5 +5870,24 @@
     "oblacnost_zitrek_pct": 18,
     "slunce_zitrek_h": 10.5,
     "uspech": true
+  },
+  {
+    "cas": "17.03.2026 12:40",
+    "mod": "SELLING_INSTEAD_OF_BATTERY_CHARGE",
+    "duvod": "Baterie plná 96.0%, přebytek 1115.0W, cena 2.493 Kč — prodávám do sítě",
+    "baterie_pct": 96.0,
+    "vyroba_w": 2001.0,
+    "spotreba_w": 886.0,
+    "odber_site_w": -1301.0,
+    "baterie_w": 106.0,
+    "cena_level": "low",
+    "cena_czk": 2.493,
+    "cena_min": 2.41,
+    "cena_max": 5.32,
+    "oblacnost_dnes_pct": 14,
+    "slunce_dnes_h": 10.7,
+    "oblacnost_zitrek_pct": 18,
+    "slunce_zitrek_h": 10.5,
+    "uspech": true
   }
 ]
