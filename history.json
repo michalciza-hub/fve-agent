@@ -8359,5 +8359,24 @@
     "oblacnost_zitrek_pct": 70,
     "slunce_zitrek_h": 9.9,
     "uspech": true
+  },
+  {
+    "cas": "18.03.2026 13:40",
+    "mod": "BLOCKING_GRID_OVERFLOW",
+    "duvod": "Cena 0.164 Kč < výkupní práh 0.45 Kč — blokuji přetoky",
+    "baterie_pct": 100.0,
+    "vyroba_w": 640.0,
+    "spotreba_w": 754.0,
+    "odber_site_w": 48.0,
+    "baterie_w": 96.0,
+    "cena_level": "low",
+    "cena_czk": 0.164,
+    "cena_min": 0.069,
+    "cena_max": 4.913,
+    "oblacnost_dnes_pct": 8,
+    "slunce_dnes_h": 10.7,
+    "oblacnost_zitrek_pct": 70,
+    "slunce_zitrek_h": 9.9,
+    "uspech": true
   }
 ]
