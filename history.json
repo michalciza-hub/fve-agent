@@ -7922,5 +7922,24 @@
     "oblacnost_zitrek_pct": 63,
     "slunce_zitrek_h": 10.7,
     "uspech": true
+  },
+  {
+    "cas": "18.03.2026 08:00",
+    "mod": "DEFAULT",
+    "duvod": "Ještě není optimální čas pro nabíjení - doporučené zahájení v 12:21 při ceně 0.184 Kč/kWh",
+    "baterie_pct": 10.0,
+    "vyroba_w": 471.0,
+    "spotreba_w": 818.0,
+    "odber_site_w": 202.0,
+    "baterie_w": 122.0,
+    "cena_level": "medium",
+    "cena_czk": 3.296,
+    "cena_min": 0.069,
+    "cena_max": 4.913,
+    "oblacnost_dnes_pct": 19,
+    "slunce_dnes_h": 10.7,
+    "oblacnost_zitrek_pct": 63,
+    "slunce_zitrek_h": 10.7,
+    "uspech": true
   }
 ]
