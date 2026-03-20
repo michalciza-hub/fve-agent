@@ -1,24 +1,5 @@
 [
   {
-    "cas": "14.03.2026 15:00",
-    "mod": "DEFAULT",
-    "duvod": "FVE vyrábí 1045W > 1000W přebytek, baterie se nabíjí sama zadarmo. Cena 1.61 Kč není levná pro nabíjení ze sítě.",
-    "baterie_pct": 100,
-    "vyroba_w": 1045,
-    "spotreba_w": 744,
-    "odber_site_w": -412,
-    "baterie_w": 124,
-    "cena_level": "low",
-    "cena_czk": 0.821,
-    "cena_min": 0.535,
-    "cena_max": 4.485,
-    "oblacnost_dnes_pct": 96,
-    "slunce_dnes_h": 6.1,
-    "oblacnost_zitrek_pct": 100,
-    "slunce_zitrek_h": 0.0,
-    "uspech": true
-  },
-  {
     "cas": "14.03.2026 15:30",
     "mod": "DEFAULT",
     "duvod": "FVE vyrábí 626W, baterie 100% plná. Cena 1.61 Kč je střední, večer vysoké ceny 4+ Kč - baterie připravena.",
@@ -13676,6 +13657,25 @@
     "oblacnost_dnes_pct": 81,
     "slunce_dnes_h": 3.8,
     "oblacnost_zitrek_pct": 80,
+    "slunce_zitrek_h": 1.9,
+    "uspech": true
+  },
+  {
+    "cas": "20.03.2026 23:30",
+    "mod": "DEFAULT",
+    "duvod": "Standardní provoz — žádné levné hodiny k dispozici",
+    "baterie_pct": 10.0,
+    "vyroba_w": 0.0,
+    "spotreba_w": 707.0,
+    "odber_site_w": 684.0,
+    "baterie_w": 124.0,
+    "cena_level": "medium",
+    "cena_czk": 3.552,
+    "cena_min": 1.453,
+    "cena_max": 6.171,
+    "oblacnost_dnes_pct": 79,
+    "slunce_dnes_h": 3.8,
+    "oblacnost_zitrek_pct": 76,
     "slunce_zitrek_h": 1.9,
     "uspech": true
   }
