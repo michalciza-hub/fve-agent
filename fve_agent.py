@@ -2,13 +2,14 @@
 FVE Agent - proteus.deltagreen.cz
 ===================================
 Jedna vrstva, 4 pravidla, bez AI, spousti se kazdych 10 minut.
+Nocni report s Claude AI se posila jednou denne o pulnoci.
 
 PRAVIDLA (priorita):
-  1. BLOCKING_GRID_OVERFLOW  - cena < 0.45 Kc (zakaz pretoku)
-  2. SAVING_TO_BATTERY nocni - nocni nabijeni 00:00-05:59 kdyz spread >= 1.8 Kc
-  3. SAVING_TO_BATTERY denni - denni nabijeni kdyz spread >= 1.8 Kc a spravny cas
-  4. USING_FROM_GRID         - setreni baterie kdyz cena < 1.67 Kc
-  5. DEFAULT                 - vychozi chovani
+  1. BLOCKING_GRID_OVERFLOW  - cena < 0.45 Kc
+  2. SAVING_TO_BATTERY nocni - 00:00-05:59, spread >= 1.8 Kc
+  3. SAVING_TO_BATTERY denni - 06:00-21:00, spread >= 1.8 Kc
+  4. USING_FROM_GRID         - cena < 1.67 Kc
+  5. DEFAULT
 """
 
 import os
@@ -31,8 +32,6 @@ PORTAL_SESSION    = os.environ["PORTAL_SESSION"]
 PORTAL_CSRF       = os.environ["PORTAL_CSRF"]
 TELEGRAM_TOKEN    = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID  = os.environ["TELEGRAM_CHAT_ID"]
-PORTAL_USERNAME   = os.environ.get("PORTAL_USERNAME", "")
-PORTAL_PASSWORD   = os.environ.get("PORTAL_PASSWORD", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 LATITUDE  = float(os.environ.get("FVE_LAT", "50.6270"))
@@ -41,9 +40,6 @@ LONGITUDE = float(os.environ.get("FVE_LON", "14.0754"))
 PRETOK_PRAH_CZK        = 0.45
 SETRENI_PRAH_CZK       = 1.67
 NABIJENI_MIN_SPREAD    = 1.8
-NABIJENI_UCINNOST      = 0.85
-NABIJENI_OPOTREBENI    = 1.67
-NABIJENI_DISTRIBUCE    = 0.40
 BATERIE_KAPACITA_KWH   = 10.0
 BATERIE_VYKON_NABIJENI = 5.5
 BATERIE_MAX_SOC        = 90
@@ -54,13 +50,6 @@ HISTORIE_SOUBOR      = "history.json"
 REPORT_SOUBOR        = "last_report.json"
 MOD_SOUBOR           = "current_mode.json"
 HISTORIE_MAX_ZAZNAMU = 30 * 24
-
-MODY_EMOJI = {
-    "SAVING_TO_BATTERY":                  "nabijeni baterie ze site",
-    "USING_FROM_GRID_INSTEAD_OF_BATTERY": "setreni energie v baterii",
-    "BLOCKING_GRID_OVERFLOW":             "zakaz pretoku",
-    "DEFAULT":                            "vychozi mod",
-}
 
 MODY_LABEL = {
     "SAVING_TO_BATTERY":                  "🩵 Nabíjení baterie ze sítě",
@@ -606,6 +595,11 @@ def nocni_report(historie, ceny, pocasi):
             "But konkretni - zmín kdy nabil, kdy setril baterii, kdy blokoval pretoky a proc.\n\n"
             "Pocasi: oblacnost " + str(oblacnost) + "%, slunce " + str(slunce) + "h\n\n"
             "Zaznamy:\n" + log_text + "\n\n"
+            "Pravidla agenta:\n"
+            "- Blokuje pretoky pokud cena < 0.45 Kc\n"
+            "- Setri baterii ze site pokud cena < 1.67 Kc (levnejsi nez opotrebeni baterie)\n"
+            "- Nabiji baterii ze site pokud spread > 1.8 Kc (ekonomicky vyhodne)\n"
+            "- Jinak DEFAULT - FVE funguje standardne\n\n"
             "Napiste pouze text shrnuti bez nadpisu."
         )
         shrnuti = claude_dotaz(prompt1)
