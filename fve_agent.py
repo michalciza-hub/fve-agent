@@ -233,13 +233,60 @@ def ziskat_pocasi():
 # PAMET
 # ============================================================
 
-def nacist_aktualni_mod():
+def nacist_aktualni_mod_z_portalu(session) -> str:
+    """Precte aktualni aktivni mod primo z portalu - zdroj pravdy."""
+    try:
+        input_data = json.dumps({
+            "0": {"json": {"inverterId": INVERTER_ID}},
+            "1": {"json": {"householdId": "hzvoejscpwua00vkzlw28vm0", "documentType": "FLEXIBILITY_CONTRACT"}}
+        })
+        resp = session.get(
+            f"{PORTAL_URL}/api/trpc/inverters.controls.state,households.activeSignatureRequests?batch=1",
+            params={"input": input_data},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return nacist_aktualni_mod_ze_souboru()
+
+        # Parsuj superjson stream - hledame chunk index 5 s manualControls
+        raw = resp.text
+        for chunk in raw.strip().split("\n"):
+            try:
+                obj = json.loads(chunk)
+                j = obj.get("json", [])
+                if isinstance(j, list) and len(j) >= 3 and j[0] == 5:
+                    data = j[2][0][0]
+                    manual_controls = data.get("manualControls", [])
+                    for ctrl in manual_controls:
+                        if ctrl.get("state") == "ENABLED":
+                            mod = ctrl.get("type", "DEFAULT")
+                            print(f"   Aktivni mod z portalu: {mod}")
+                            return mod
+                    print("   Aktivni mod z portalu: DEFAULT (vse DISABLED)")
+                    return "DEFAULT"
+            except:
+                continue
+        return nacist_aktualni_mod_ze_souboru()
+    except Exception as e:
+        print(f"   Chyba cteni modu z portalu: {e}")
+        return nacist_aktualni_mod_ze_souboru()
+
+
+def nacist_aktualni_mod_ze_souboru() -> str:
+    """Fallback - nacte mod z lokalniho souboru."""
     try:
         if os.path.exists(MOD_SOUBOR):
             return json.load(open(MOD_SOUBOR)).get("mod", "DEFAULT")
     except:
         pass
     return "DEFAULT"
+
+
+def nacist_aktualni_mod(session=None) -> str:
+    """Nacte aktualni mod - preferuje portal, fallback na soubor."""
+    if session:
+        return nacist_aktualni_mod_z_portalu(session)
+    return nacist_aktualni_mod_ze_souboru()
 
 def ulozit_aktualni_mod(mod):
     try:
@@ -683,7 +730,7 @@ def main():
             json.dump({"datum": dnes_str}, open(plan_soubor, "w"))
             subprocess.run(["git", "add", plan_soubor], capture_output=True)
 
-    predchozi = nacist_aktualni_mod()
+    predchozi = nacist_aktualni_mod(session)
     novy_mod, duvod = rozhodnout(stav, ceny, pocasi, nocni, denni, predchozi, hodina)
     print(f"\nRozhodnuti: {MODY_LABEL.get(novy_mod, novy_mod)} - {duvod}")
 
