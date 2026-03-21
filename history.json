@@ -1,24 +1,5 @@
 [
   {
-    "cas": "15.03.2026 13:00",
-    "mod": "DEFAULT",
-    "duvod": "FVE vyrábí 1816W přebytek, baterie se nabíjí sama zadarmo. Cena 0.91 Kč je levná, není třeba měnit režim.",
-    "baterie_pct": 14,
-    "vyroba_w": 1816,
-    "spotreba_w": 1569,
-    "odber_site_w": -13,
-    "baterie_w": 504,
-    "cena_level": "low",
-    "cena_czk": 1.148,
-    "cena_min": 0.64,
-    "cena_max": 3.896,
-    "oblacnost_dnes_pct": 100,
-    "slunce_dnes_h": 0.0,
-    "oblacnost_zitrek_pct": 73,
-    "slunce_zitrek_h": 8.3,
-    "uspech": true
-  },
-  {
     "cas": "15.03.2026 13:30",
     "mod": "DEFAULT",
     "duvod": "FVE vyrábí 623W přebytek, baterie se nabíjí sama zadarmo. Cena 0.91 Kč je levná, zítra slunce 8.3h.",
@@ -13677,6 +13658,25 @@
     "slunce_dnes_h": 1.3,
     "oblacnost_zitrek_pct": 31,
     "slunce_zitrek_h": 11.0,
+    "uspech": true
+  },
+  {
+    "cas": "21.03.2026 08:30",
+    "mod": "DEFAULT",
+    "duvod": "Čekám na levnější období - doporučené zahájení nabíjení až v 11:21 při ceně ~1.755 Kč/kWh",
+    "baterie_pct": 10.0,
+    "vyroba_w": 1110.0,
+    "spotreba_w": 931.0,
+    "odber_site_w": -23.0,
+    "baterie_w": 436.0,
+    "cena_level": "medium",
+    "cena_czk": 2.938,
+    "cena_min": 0.775,
+    "cena_max": 4.715,
+    "oblacnost_dnes_pct": 81,
+    "slunce_dnes_h": 2.7,
+    "oblacnost_zitrek_pct": 28,
+    "slunce_zitrek_h": 10.9,
     "uspech": true
   }
 ]
