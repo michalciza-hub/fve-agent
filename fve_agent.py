@@ -37,7 +37,8 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 LATITUDE  = float(os.environ.get("FVE_LAT", "50.6270"))
 LONGITUDE = float(os.environ.get("FVE_LON", "14.0754"))
 
-PRETOK_PRAH_CZK        = 0.45
+PRETOK_PRAH_CZK        = 0.45   # Kc/kWh - pod timto zapni blocking
+PRETOK_HYSTEREZE_CZK   = 0.65   # Kc/kWh - nad timto vypni blocking (hystereze proti kmitani)
 SETRENI_PRAH_CZK       = 1.67
 NABIJENI_MIN_SPREAD    = 1.8
 BATERIE_KAPACITA_KWH   = 10.0
@@ -442,8 +443,8 @@ def rozhodnout(stav, ceny, pocasi, nocni, denni, predchozi, hodina):
     # PRAVIDLO 1: BLOCKING_GRID_OVERFLOW
     if cena < PRETOK_PRAH_CZK:
         return "BLOCKING_GRID_OVERFLOW", f"Cena {cena} Kc < prah {PRETOK_PRAH_CZK} Kc - blokuji pretoky"
-    if predchozi == "BLOCKING_GRID_OVERFLOW" and cena >= PRETOK_PRAH_CZK:
-        return "DEFAULT", f"Cena {cena} Kc nad prahem - pretoky povoleny"
+    if predchozi == "BLOCKING_GRID_OVERFLOW" and cena >= PRETOK_HYSTEREZE_CZK:
+        return "DEFAULT", f"Cena {cena} Kc nad prahem {PRETOK_HYSTEREZE_CZK} Kc - pretoky povoleny"
 
     # PRAVIDLO 2: NOCNI NABIJENI
     if nocni:
@@ -463,6 +464,8 @@ def rozhodnout(stav, ceny, pocasi, nocni, denni, predchozi, hodina):
         if predchozi == "SAVING_TO_BATTERY":
             if cena > denni["prumer_levne"] * 2.0:
                 return "DEFAULT", f"Levne obdobi skoncilo - cena {cena} Kc, ukoncuji nabijeni"
+            if hodina > denni["konec_levneho"]:
+                return "DEFAULT", f"Cas levneho obdobi vyprsel ({denni['konec_levneho']:02d}:00) - ukoncuji nabijeni"
             if soc >= BATERIE_MAX_SOC:
                 return "DEFAULT", f"Baterie {soc:.0f}% - nabijeni dokonceno"
             return "SAVING_TO_BATTERY", f"Denni nabijeni pokracuje - baterie {soc:.0f}% -> cil {BATERIE_MAX_SOC}%"
