@@ -677,8 +677,11 @@ def nocni_report(historie, ceny, pocasi):
             " (" + str(nocni_a["nejlevnejsi_cena"]) + " Kc),"
             " ranni spicka " + str(nocni_a["ranni_spicka"]) + " Kc,"
             " spread " + str(nocni_a["spread"]) + " Kc"
-            " - " + ("vyhodne" if nocni_a["vyhodni"] else "nevyhodne")
+            " (minimum pro nabijeni je " + str(NABIJENI_MIN_SPREAD) + " Kc)"
+            " - " + ("AGENT NABIJI ze site" if nocni_a["vyhodni"] else "AGENT NENABIJI ze site - spread neni dostatecny")
         )
+    else:
+        nocni_info = "Nocni nabijeni: spread neni dostatecny nebo analyza neni dostupna - AGENT NENABIJI ze site"
     denni_info = ""
     if denni_a:
         denni_info = (
