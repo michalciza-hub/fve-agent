@@ -1,24 +1,5 @@
 [
   {
-    "cas": "18.03.2026 15:36",
-    "mod": "SELLING_INSTEAD_OF_BATTERY_CHARGE",
-    "duvod": "Baterie plná 100.0%, přebytek 1684.0W, cena 2.076 Kč — prodávám do sítě",
-    "baterie_pct": 100.0,
-    "vyroba_w": 2472.0,
-    "spotreba_w": 788.0,
-    "odber_site_w": -1816.0,
-    "baterie_w": 105.0,
-    "cena_level": "medium",
-    "cena_czk": 2.076,
-    "cena_min": 0.069,
-    "cena_max": 4.913,
-    "oblacnost_dnes_pct": 21,
-    "slunce_dnes_h": 10.7,
-    "oblacnost_zitrek_pct": 68,
-    "slunce_zitrek_h": 9.7,
-    "uspech": true
-  },
-  {
     "cas": "18.03.2026 15:40",
     "mod": "DEFAULT",
     "duvod": "Ukončuji prodej — cena 2.076 Kč nebo SOC 100.0% nebo přebytek 100.0W",
@@ -12574,5 +12555,21 @@
     "slunce_dnes_h": 10.1,
     "oblacnost_zitrek_pct": 90,
     "slunce_zitrek_h": 10.3
+  },
+  {
+    "cas": "23.03.2026 21:40",
+    "mod": "DEFAULT",
+    "duvod": "Standardni provoz",
+    "baterie_pct": 53.0,
+    "baterie_w": -728.0,
+    "vyroba_w": 0.0,
+    "spotreba_w": 780.0,
+    "odber_site_w": -4.0,
+    "cena_czk": 3.955,
+    "cena_level": "medium",
+    "oblacnost_dnes_pct": 54,
+    "slunce_dnes_h": 10.3,
+    "oblacnost_zitrek_pct": 90,
+    "slunce_zitrek_h": 10.4
   }
 ]
