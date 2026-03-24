@@ -577,6 +577,9 @@ def nocni_report(historie, ceny, pocasi):
 
     # --- ZPRAVA 1: Souhrn vcerejska ---
     zaznamy = [z for z in historie if z.get("cas", "").startswith(vcera_str)]
+    print(f"Report: hledam zaznamy pro {vcera_str}, nalezeno {len(zaznamy)} z {len(historie)} celkem")
+    if len(historie) > 0:
+        print(f"Report: prvni zaznam: {historie[0].get('cas')}, posledni: {historie[-1].get('cas')}")
     if zaznamy:
         radky = []
         for z in zaznamy:
