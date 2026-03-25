@@ -573,7 +573,7 @@ def nocni_report(historie, ceny, pocasi):
     now       = datetime.now(TZ)
     vcera     = (now - timedelta(days=1)).strftime("%d.%m.%Y")
     dnes      = now.strftime("%d.%m.%Y")
-    vcera_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    vcera_str = (now - timedelta(days=1)).strftime("%d.%m.%Y")  # format jako v historii: DD.MM.YYYY
 
     # --- ZPRAVA 1: Souhrn vcerejska ---
     zaznamy = [z for z in historie if z.get("cas", "").startswith(vcera_str)]
