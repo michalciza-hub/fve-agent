@@ -477,11 +477,15 @@ def rozhodnout(stav, ceny, pocasi, nocni, denni, predchozi, hodina):
         else:
             return "DEFAULT", f"Cekam na optimalni cas nabijeni {denni['zahajeni_hod']:02d}:{denni['zahajeni_min']:02d}"
 
-    # PRAVIDLO 4: SETRENI BATERIE
+    # PRAVIDLO 4: SETRENI BATERIE (hystereze 0.15 Kc proti kmitani)
+    SETRENI_HYSTEREZE = SETRENI_PRAH_CZK + 0.15  # 1.82 Kc - vypnuti
+    if predchozi == "USING_FROM_GRID_INSTEAD_OF_BATTERY":
+        # Uz setrime - vypneme az pri vyssi cene (hystereze)
+        if cena >= SETRENI_HYSTEREZE:
+            return "DEFAULT", f"Cena {cena} Kc nad prahem {SETRENI_HYSTEREZE} Kc - ukoncuji setreni baterie"
+        return "USING_FROM_GRID_INSTEAD_OF_BATTERY", f"Cena {cena} Kc < {SETRENI_HYSTEREZE} Kc - pokracuji v setreni baterie"
     if cena < SETRENI_PRAH_CZK:
         return "USING_FROM_GRID_INSTEAD_OF_BATTERY", f"Cena {cena} Kc < opotrebeni baterie {SETRENI_PRAH_CZK} Kc - setrim baterii"
-    if predchozi == "USING_FROM_GRID_INSTEAD_OF_BATTERY" and cena >= SETRENI_PRAH_CZK:
-        return "DEFAULT", f"Cena {cena} Kc nad prahem {SETRENI_PRAH_CZK} Kc - ukoncuji setreni baterie"
 
     return "DEFAULT", "Standardni provoz"
 
@@ -643,7 +647,15 @@ def nocni_report(historie, ceny, pocasi):
         shrnuti = claude_dotaz(prompt1)
         zprava1 = ("FVE Report " + vcera + "\n\n" + shrnuti) if shrnuti else ("FVE Report " + vcera + " - nelze sestavit shrnuti.")
     else:
-        zprava1 = "FVE Report " + vcera + " - zadne zaznamy."
+        # Pokus o predvcerejsi data (kdyby report bezi pred commitem 23:50)
+        predvcerejsi_dt  = now - timedelta(days=2)
+        predvcerejsi_str = predvcerejsi_dt.strftime("%d.%m.%Y")
+        zaznamy2 = [z for z in historie if z.get("cas", "").startswith(predvcerejsi_str)]
+        print(f"Report fallback: hledam {predvcerejsi_str}, nalezeno {len(zaznamy2)}")
+        if zaznamy2:
+            zprava1 = "FVE Report " + vcera + " (data z " + predvcerejsi_str + " - vcera zatim bez zaznamu)\n\nData nejsou k dispozici, zkuste znovu."
+        else:
+            zprava1 = "FVE Report " + vcera + " - zadne zaznamy v historii."
     telegram(zprava1)
 
     # --- ZPRAVA 2: Plan na dnes ---
@@ -770,8 +782,8 @@ def main():
     nocni = analyzovat_nocni(ceny, stav or {}, hodina, minuta) if ceny else None
     denni = analyzovat_denni(ceny, stav or {}, hodina, minuta) if ceny else None
 
-    # Nocni report jednou denne o 00:00-00:09
-    if hodina == 0 and minuta < 10:
+    # Nocni report jednou denne o 00:10-00:19 (00:00 beh jeste nema vsechny zaznamy)
+    if hodina == 0 and 10 <= minuta < 20:
         dnes_str = now.strftime("%Y-%m-%d")
         posledni_report = ""
         try:
@@ -819,6 +831,13 @@ def main():
         spotreba = f"{stav['spotreba_w']:.0f} W"      if stav else "?"
         odber    = f"{stav['odber_site_w']:.0f} W"    if stav else "?"
         cena_t   = f"{ceny['aktualni']} Kc/kWh"       if ceny else "?"
+        # Info o analyze (denni/nocni nabijeni)
+        analyza_info = ""
+        if denni and denni.get("vyhodni"):
+            analyza_info = f"\nDenni nabijeni: {denni['prumer_levne']} Kc/kWh, spread {denni['spread']} Kc, oblacnost {pocasi['dnes']['oblacnost'] if pocasi else '?'}%, konec {denni['konec_levneho']:02d}:00"
+        elif nocni and nocni.get("vyhodni"):
+            analyza_info = f"\nNocni nabijeni: {nocni['nejlevnejsi_cena']} Kc/kWh, spread {nocni['spread']} Kc, cil {nocni['cil_soc']}%"
+
         zprava = (
             f"FVE Agent {cas}\n\n"
             f"Zmena modu:\n"
@@ -831,7 +850,7 @@ def main():
             f"  Spotreba: {spotreba}\n"
             f"  Odber site: {odber}\n"
             f"  Cena spot: {cena_t}\n\n"
-            f"{duvod}"
+            f"{duvod}{analyza_info}"
         )
         telegram(zprava)
     elif not uspech:
