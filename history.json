@@ -1,24 +1,5 @@
 [
   {
-    "cas": "21.03.2026 08:00",
-    "mod": "DEFAULT",
-    "duvod": "Čekám na levnější období - doporučené zahájení nabíjení až v 11:21 (cena ~1.755 Kč/kWh)",
-    "baterie_pct": 10.0,
-    "vyroba_w": 586.0,
-    "spotreba_w": 816.0,
-    "odber_site_w": 84.0,
-    "baterie_w": 119.0,
-    "cena_level": "medium",
-    "cena_czk": 3.373,
-    "cena_min": 0.775,
-    "cena_max": 4.715,
-    "oblacnost_dnes_pct": 83,
-    "slunce_dnes_h": 1.3,
-    "oblacnost_zitrek_pct": 31,
-    "slunce_zitrek_h": 11.0,
-    "uspech": true
-  },
-  {
     "cas": "21.03.2026 08:30",
     "mod": "DEFAULT",
     "duvod": "Čekám na levnější období - doporučené zahájení nabíjení až v 11:21 při ceně ~1.755 Kč/kWh",
@@ -11523,6 +11504,22 @@
     "oblacnost_dnes_pct": 94,
     "slunce_dnes_h": 7.8,
     "oblacnost_zitrek_pct": 39,
+    "slunce_zitrek_h": 11.3
+  },
+  {
+    "cas": "26.03.2026 08:30",
+    "mod": "DEFAULT",
+    "duvod": "Standardni provoz",
+    "baterie_pct": 10.0,
+    "baterie_w": 114.0,
+    "vyroba_w": 346.0,
+    "spotreba_w": 2597.0,
+    "odber_site_w": 2102.0,
+    "cena_czk": 2.917,
+    "cena_level": "medium",
+    "oblacnost_dnes_pct": 94,
+    "slunce_dnes_h": 7.2,
+    "oblacnost_zitrek_pct": 42,
     "slunce_zitrek_h": 11.3
   }
 ]
