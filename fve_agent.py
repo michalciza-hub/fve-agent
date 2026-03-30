@@ -443,8 +443,12 @@ def rozhodnout(stav, ceny, pocasi, nocni, denni, predchozi, hodina):
     # PRAVIDLO 1: BLOCKING_GRID_OVERFLOW
     if cena < PRETOK_PRAH_CZK:
         return "BLOCKING_GRID_OVERFLOW", f"Cena {cena} Kc < prah {PRETOK_PRAH_CZK} Kc - blokuji pretoky"
-    if predchozi == "BLOCKING_GRID_OVERFLOW" and cena >= PRETOK_HYSTEREZE_CZK:
-        return "DEFAULT", f"Cena {cena} Kc nad prahem {PRETOK_HYSTEREZE_CZK} Kc - pretoky povoleny"
+    if predchozi == "BLOCKING_GRID_OVERFLOW":
+        if cena >= PRETOK_HYSTEREZE_CZK:
+            return "DEFAULT", f"Cena {cena} Kc nad prahem {PRETOK_HYSTEREZE_CZK} Kc - pretoky povoleny"
+        else:
+            # Cena mezi prahem a hysterezi - drzime blocking dokud nedosahne hystereze
+            return "BLOCKING_GRID_OVERFLOW", f"Cena {cena} Kc pod hysterezi {PRETOK_HYSTEREZE_CZK} Kc - drzim zakaz pretoku"
 
     # PRAVIDLO 2: NOCNI NABIJENI
     if nocni:
