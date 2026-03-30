@@ -50,6 +50,8 @@ NOCNI_TOLERANCE_CZK    = 0.3
 HISTORIE_SOUBOR      = "history.json"
 REPORT_SOUBOR        = "last_report.json"
 MOD_SOUBOR           = "current_mode.json"
+MANUAL_SOUBOR        = "manual_override.json"
+TELEGRAM_UPDATES     = "telegram_updates.json"
 HISTORIE_MAX_ZAZNAMU = 30 * 24
 
 MODY_LABEL = {
@@ -437,6 +439,13 @@ def rozhodnout(stav, ceny, pocasi, nocni, denni, predchozi, hodina):
 
     cena      = ceny.get("aktualni", 0)
     soc       = stav.get("baterie_procent", 50) if stav else 50
+
+    # NABIJ OVERRIDE - nabij na 100%
+    if je_nabij_override():
+        if soc >= 100:
+            zrusit_nabij_override()
+            return "DEFAULT", "Baterie 100% - nabijeni dokonceno"
+        return "SAVING_TO_BATTERY", f"Prikaz NABIJ: nabijeni na 100%, baterie {soc:.0f}%"
     oblacnost = pocasi["dnes"]["oblacnost"] if pocasi else 50
     prebytek  = (stav.get("vyroba_w", 0) - stav.get("spotreba_w", 0)) if stav else 0
 
@@ -763,6 +772,185 @@ def nocni_report(historie, ceny, pocasi):
     telegram(zprava2)
 
 
+
+# ============================================================
+# TELEGRAM PRIKAZY - zpetna komunikace
+# ============================================================
+
+import re as _re
+
+def telegram_cti_prikazy(stav, ceny, pocasi, session):
+    """Precte nove zpravy z Telegramu a zpracuje prikazy."""
+    # Nacti posledni update_id
+    last_update_id = 0
+    try:
+        if os.path.exists(TELEGRAM_UPDATES):
+            last_update_id = json.load(open(TELEGRAM_UPDATES)).get("last_update_id", 0)
+    except:
+        pass
+
+    try:
+        resp = requests.get(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates",
+            params={"offset": last_update_id + 1, "timeout": 3, "limit": 10},
+            timeout=10,
+        )
+        data = resp.json()
+        if not data.get("ok"):
+            return
+        updates = data.get("result", [])
+        if not updates:
+            return
+
+        # Uloz posledni update_id
+        new_last = updates[-1]["update_id"]
+        json.dump({"last_update_id": new_last}, open(TELEGRAM_UPDATES, "w"))
+        subprocess.run(["git", "add", TELEGRAM_UPDATES], capture_output=True)
+
+        for update in updates:
+            msg = update.get("message", {})
+            text = msg.get("text", "").strip()
+            chat_id = str(msg.get("chat", {}).get("id", ""))
+
+            # Kontrola ze zprava je z naseho chatu
+            if chat_id != str(TELEGRAM_CHAT_ID):
+                continue
+
+            # Parsuj prikazy (case insensitive)
+            text_lower = text.lower()
+
+            # [MANUAL<minuty>]
+            m = _re.search(r'\[manual(\d+)\]', text_lower)
+            if m:
+                minuty = int(m.group(1))
+                _zpracuj_manual(minuty)
+                continue
+
+            # [NABIJ]
+            if _re.search(r'\[nabij\]', text_lower):
+                _zpracuj_nabij()
+                continue
+
+            # [STATUS]
+            if _re.search(r'\[status\]', text_lower):
+                _zpracuj_status(stav, ceny, pocasi)
+                continue
+
+            # Neznamy prikaz v hranatych zavorkach
+            if _re.search(r'\[.+?\]', text_lower):
+                telegram("Neznam prikaz. Dostupne prikazy:\n[MANUAL<min>] - manualni rizeni\n[NABIJ] - nabij na 100%\n[STATUS] - aktualni stav")
+
+    except Exception as e:
+        print(f"Telegram getUpdates chyba: {e}")
+
+
+def _zpracuj_manual(minuty):
+    """Aktivuje manualni override na zadany pocet minut."""
+    now = datetime.now(TZ)
+    expires = now + timedelta(minutes=minuty)
+    expires_str = expires.strftime("%d.%m.%Y %H:%M")
+    json.dump({"expires": expires_str}, open(MANUAL_SOUBOR, "w"))
+    subprocess.run(["git", "add", MANUAL_SOUBOR], capture_output=True)
+    telegram(
+        f"Manualní řízení aktivní do {expires_str} ({minuty} min).\n"
+        f"Agent nic nedělá - řiďte přes portál."
+    )
+    print(f"Manual override: aktivni do {expires_str}")
+
+
+def _zpracuj_nabij():
+    """Aktivuje okamzite nabijeni na 100%."""
+    json.dump({"nabij_100": True}, open("nabij_override.json", "w"))
+    subprocess.run(["git", "add", "nabij_override.json"], capture_output=True)
+    telegram("Spouštím nabíjení na 100%. Agent bude nabíjet dokud baterie nedosáhne 100%.")
+    print("Nabij override: aktivovan")
+
+
+def _zpracuj_status(stav, ceny, pocasi):
+    """Odesle aktualni stav na Telegram."""
+    now = datetime.now(TZ)
+
+    # Manualni override
+    manual_info = ""
+    try:
+        if os.path.exists(MANUAL_SOUBOR):
+            data = json.load(open(MANUAL_SOUBOR))
+            expires_str = data.get("expires", "")
+            expires_dt = datetime.strptime(expires_str, "%d.%m.%Y %H:%M").replace(tzinfo=TZ)
+            if expires_dt > now:
+                manual_info = f"\nManualni override do: {expires_str}"
+    except:
+        pass
+
+    bat      = f"{stav['baterie_procent']:.0f}%" if stav else "?"
+    vyroba   = f"{stav['vyroba_w']:.0f} W"       if stav else "?"
+    spotreba = f"{stav['spotreba_w']:.0f} W"      if stav else "?"
+    odber_w  = stav.get("odber_site_w", 0) if stav else 0
+    pretok   = f"{-odber_w:.0f} W" if odber_w < 0 else "0 W"
+    odber    = f"{odber_w:.0f} W"  if odber_w > 0 else "0 W"
+    cena_t   = f"{ceny['aktualni']} Kc/kWh [{ceny['aktualni_level']}]" if ceny else "?"
+    oblak    = f"{pocasi['dnes']['oblacnost']}%, slunce {pocasi['dnes']['slunce_h']}h" if pocasi else "?"
+
+    zprava = (
+        f"STATUS {now.strftime('%d.%m.%Y %H:%M')}\n\n"
+        f"Baterie: {bat}\n"
+        f"Vyroba FVE: {vyroba}\n"
+        f"Spotreba: {spotreba}\n"
+        f"Odber ze site: {odber}\n"
+        f"Pretok do site: {pretok}\n"
+        f"Cena spot: {cena_t}\n"
+        f"Pocasi: {oblak}"
+        f"{manual_info}"
+    )
+    telegram(zprava)
+
+
+def je_manual_override():
+    """Vrati True pokud je aktivni manualni override."""
+    try:
+        if os.path.exists(MANUAL_SOUBOR):
+            data = json.load(open(MANUAL_SOUBOR))
+            expires_str = data.get("expires", "")
+            expires_dt = datetime.strptime(expires_str, "%d.%m.%Y %H:%M").replace(tzinfo=TZ)
+            now = datetime.now(TZ)
+            if expires_dt > now:
+                zbyvá = int((expires_dt - now).total_seconds() / 60)
+                print(f"Manual override aktivni, zbývá {zbývá} min (do {expires_str})")
+                return True
+            else:
+                # Override vypršel - smaž soubor a notifikuj
+                os.remove(MANUAL_SOUBOR)
+                subprocess.run(["git", "add", MANUAL_SOUBOR], capture_output=True)
+                telegram("Manuální řízení ukončeno. Obnovuji automatiku.")
+                print("Manual override vypršel, automatika obnovena")
+    except:
+        pass
+    return False
+
+
+def je_nabij_override():
+    """Vrati True pokud je aktivni prikaz nabij na 100%."""
+    try:
+        if os.path.exists("nabij_override.json"):
+            data = json.load(open("nabij_override.json"))
+            return data.get("nabij_100", False)
+    except:
+        pass
+    return False
+
+
+def zrusit_nabij_override():
+    """Zrusi prikaz nabij po dosazeni 100%."""
+    try:
+        if os.path.exists("nabij_override.json"):
+            os.remove("nabij_override.json")
+            subprocess.run(["git", "add", "nabij_override.json"], capture_output=True)
+            telegram("Baterie dosáhla 100%. Nabíjení dokončeno, obnovuji automatiku.")
+            print("Nabij override zrusen - baterie 100%")
+    except:
+        pass
+
+
 # ============================================================
 # MAIN
 # ============================================================
@@ -785,6 +973,32 @@ def main():
 
     nocni = analyzovat_nocni(ceny, stav or {}, hodina, minuta) if ceny else None
     denni = analyzovat_denni(ceny, stav or {}, hodina, minuta) if ceny else None
+
+    # Zpracuj prikazy z Telegramu
+    telegram_cti_prikazy(stav, ceny, pocasi, session)
+
+    # Zkontroluj manualni override - pokud aktivni, nic nedelej
+    if je_manual_override():
+        print("Manual override aktivni - preskakuji automatiku")
+        # Uloz zaznam ale bez zmeny modu
+        zaznam = {
+            "cas": cas, "mod": "MANUAL", "duvod": "Manualni override aktivni",
+            "baterie_pct": stav.get("baterie_procent") if stav else None,
+            "baterie_w": stav.get("baterie_w") if stav else None,
+            "vyroba_w": stav.get("vyroba_w") if stav else None,
+            "spotreba_w": stav.get("spotreba_w") if stav else None,
+            "odber_site_w": stav.get("odber_site_w") if stav else None,
+            "cena_czk": ceny.get("aktualni") if ceny else None,
+            "cena_level": ceny.get("aktualni_level") if ceny else None,
+            "oblacnost_dnes_pct": pocasi["dnes"]["oblacnost"] if pocasi else None,
+            "slunce_dnes_h": pocasi["dnes"]["slunce_h"] if pocasi else None,
+            "oblacnost_zitrek_pct": pocasi["zitrek"]["oblacnost"] if pocasi else None,
+            "slunce_zitrek_h": pocasi["zitrek"]["slunce_h"] if pocasi else None,
+        }
+        historie = ulozit_zaznam(historie, zaznam)
+        commitnout_historii()
+        print("\nHotovo (manual)")
+        return
 
     # Nocni report jednou denne o 00:10-00:19 (00:00 beh jeste nema vsechny zaznamy)
     if hodina == 0 and 10 <= minuta < 20:
