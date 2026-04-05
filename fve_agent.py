@@ -509,22 +509,42 @@ def rozhodnout(stav, ceny, pocasi, nocni, denni, predchozi, hodina):
 def nastavit_mod(session, mod):
     print(f"Nastavuji: {MODY_LABEL.get(mod, mod)}")
     vsechny_mody = ["SAVING_TO_BATTERY", "USING_FROM_GRID_INSTEAD_OF_BATTERY",
-                    "BLOCKING_GRID_OVERFLOW", "SELLING_INSTEAD_OF_BATTERY_CHARGE"]
-    for typ in [m for m in vsechny_mody if m != mod]:
+                    "BLOCKING_GRID_OVERFLOW", "SELLING_INSTEAD_OF_BATTERY_CHARGE",
+                    "SELLING_FROM_BATTERY"]
+
+    # Vypni vsechny mody vcetne toho co chceme zapnout (cistý stav)
+    chyby = 0
+    for typ in vsechny_mody:
         try:
-            session.post(API_URL, json={"0": {"json": {"type": typ, "inverterId": INVERTER_ID, "state": "DISABLED"}}}, timeout=10)
-        except:
-            pass
+            resp = session.post(
+                API_URL,
+                json={"0": {"json": {"type": typ, "inverterId": INVERTER_ID, "state": "DISABLED"}}},
+                timeout=10,
+            )
+            if resp.status_code != 200:
+                print(f"   Varovani: vypnuti {typ} vratilo {resp.status_code}")
+                chyby += 1
+        except Exception as e:
+            print(f"   Varovani: vypnuti {typ} selhalo: {e}")
+            chyby += 1
+
     if mod == "DEFAULT":
-        print("   Vsechny mody vypnuty (DEFAULT)")
-        return True
+        ok = chyby == 0
+        print(f"   {'Vsechny mody vypnuty (DEFAULT)' if ok else f'DEFAULT s {chyby} chybami'}")
+        return ok
+
+    # Zapni pozadovany mod
     try:
-        resp = session.post(API_URL, json={"0": {"json": {"type": mod, "inverterId": INVERTER_ID, "state": "ENABLED"}}}, timeout=15)
+        resp = session.post(
+            API_URL,
+            json={"0": {"json": {"type": mod, "inverterId": INVERTER_ID, "state": "ENABLED"}}},
+            timeout=15,
+        )
         ok = resp.status_code == 200
-        print(f"   {'Nastaveno OK' if ok else f'Chyba {resp.status_code}'}")
+        print(f"   {'Nastaveno OK' if ok else f'Chyba zapnuti {resp.status_code}'}")
         return ok
     except Exception as e:
-        print(f"   Vyjimka: {e}")
+        print(f"   Vyjimka pri zapnuti: {e}")
         return False
 
 # ============================================================
