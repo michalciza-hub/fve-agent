@@ -188,6 +188,7 @@ def ziskat_ceny():
         aktualni       = dnes[idx] if idx < len(dnes) else dnes[-1]
         aktualni_level = data["hoursToday"][idx]["level"] if idx < len(data["hoursToday"]) else "unknown"
         print(f"   Aktualni: {aktualni} Kc/kWh [{aktualni_level}] | Min: {min(dnes):.3f} | Max: {max(dnes):.3f}")
+        print(f"   DEBUG cas: {now.strftime('%H:%M %Z')} idx={idx} (h={h} m={m})")
         return {
             "aktualni":       aktualni,
             "aktualni_level": aktualni_level,
@@ -491,7 +492,7 @@ def rozhodnout(stav, ceny, pocasi, nocni, denni, predchozi, hodina):
             return "DEFAULT", f"Cekam na optimalni cas nabijeni {denni['zahajeni_hod']:02d}:{denni['zahajeni_min']:02d}"
 
     # PRAVIDLO 4: SETRENI BATERIE (hystereze 0.15 Kc proti kmitani)
-    SETRENI_HYSTEREZE = SETRENI_PRAH_CZK + 0.15  # 1.82 Kc - vypnuti
+    SETRENI_HYSTEREZE = round(SETRENI_PRAH_CZK + 0.15, 2)  # 1.82 Kc - vypnuti
     if predchozi == "USING_FROM_GRID_INSTEAD_OF_BATTERY":
         # Uz setrime - vypneme az pri vyssi cene (hystereze)
         if cena >= SETRENI_HYSTEREZE:
@@ -1054,12 +1055,14 @@ def main():
     predchozi = nacist_aktualni_mod(session)
     novy_mod, duvod = rozhodnout(stav, ceny, pocasi, nocni, denni, predchozi, hodina)
     print(f"\nRozhodnuti: {MODY_LABEL.get(novy_mod, novy_mod)} - {duvod}")
+    print(f"DEBUG: predchozi={predchozi} novy={novy_mod} zmena={'ANO' if novy_mod != predchozi else 'NE'}")
 
     if not session:
         telegram(f"FVE Agent {cas}: nelze se prihlasit na portal!")
         return
 
     uspech = nastavit_mod(session, novy_mod)
+    print(f"DEBUG: nastavit_mod uspech={uspech}")
     if uspech:
         ulozit_aktualni_mod(novy_mod)
 
