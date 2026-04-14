@@ -514,7 +514,7 @@ def nastavit_mod(session, mod):
                     "SELLING_FROM_BATTERY"]
 
     # Vypni vsechny mody vcetne toho co chceme zapnout (cistý stav)
-    chyby = 0
+    chyby = []
     for typ in vsechny_mody:
         try:
             resp = session.post(
@@ -523,15 +523,19 @@ def nastavit_mod(session, mod):
                 timeout=10,
             )
             if resp.status_code != 200:
-                print(f"   Varovani: vypnuti {typ} vratilo {resp.status_code}")
-                chyby += 1
+                msg = f"vypnuti {typ}: HTTP {resp.status_code} | {resp.text[:100]}"
+                print(f"   Varovani: {msg}")
+                chyby.append(msg)
         except Exception as e:
-            print(f"   Varovani: vypnuti {typ} selhalo: {e}")
-            chyby += 1
+            msg = f"vypnuti {typ}: {e}"
+            print(f"   Varovani: {msg}")
+            chyby.append(msg)
 
     if mod == "DEFAULT":
-        ok = chyby == 0
-        print(f"   {'Vsechny mody vypnuty (DEFAULT)' if ok else f'DEFAULT s {chyby} chybami'}")
+        ok = len(chyby) == 0
+        print(f"   {'Vsechny mody vypnuty (DEFAULT)' if ok else f'DEFAULT s {len(chyby)} chybami'}")
+        if not ok:
+            telegram(f"DEBUG nastavit_mod DEFAULT chyby:\n" + "\n".join(chyby[:3]))
         return ok
 
     # Zapni pozadovany mod
@@ -542,10 +546,18 @@ def nastavit_mod(session, mod):
             timeout=15,
         )
         ok = resp.status_code == 200
-        print(f"   {'Nastaveno OK' if ok else f'Chyba zapnuti {resp.status_code}'}")
+        if ok:
+            print(f"   Nastaveno OK")
+        else:
+            msg = f"zapnuti {mod}: HTTP {resp.status_code} | {resp.text[:200]}"
+            print(f"   Chyba: {msg}")
+            chyby.append(msg)
+            telegram(f"DEBUG nastavit_mod {MODY_LABEL.get(mod,mod)} CHYBA:\n{msg}")
         return ok
     except Exception as e:
-        print(f"   Vyjimka pri zapnuti: {e}")
+        msg = f"zapnuti {mod}: vyjimka {e}"
+        print(f"   Vyjimka: {e}")
+        telegram(f"DEBUG nastavit_mod {MODY_LABEL.get(mod,mod)} VYJIMKA:\n{msg}")
         return False
 
 # ============================================================
