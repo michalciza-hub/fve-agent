@@ -1,21 +1,5 @@
 [
   {
-    "cas": "11.04.2026 18:15",
-    "mod": "DEFAULT",
-    "duvod": "Cena 1.772 Kc nad prahem 0.65 Kc - pretoky povoleny",
-    "baterie_pct": 99.0,
-    "baterie_w": 116.0,
-    "vyroba_w": 374.0,
-    "spotreba_w": 871.0,
-    "odber_site_w": 371.0,
-    "cena_czk": 1.772,
-    "cena_level": "high",
-    "oblacnost_dnes_pct": 63,
-    "slunce_dnes_h": 8.7,
-    "oblacnost_zitrek_pct": 90,
-    "slunce_zitrek_h": 0.1
-  },
-  {
     "cas": "11.04.2026 18:30",
     "mod": "DEFAULT",
     "duvod": "Standardni provoz",
@@ -11518,5 +11502,21 @@
     "slunce_dnes_h": 3.4,
     "oblacnost_zitrek_pct": 88,
     "slunce_zitrek_h": 5.2
+  },
+  {
+    "cas": "19.04.2026 06:30",
+    "mod": "DEFAULT",
+    "duvod": "Cekam na optimalni cas nabijeni 14:33",
+    "baterie_pct": 10.0,
+    "baterie_w": 116.0,
+    "vyroba_w": 47.0,
+    "spotreba_w": 798.0,
+    "odber_site_w": 684.0,
+    "cena_czk": 2.58,
+    "cena_level": "high",
+    "oblacnost_dnes_pct": 94,
+    "slunce_dnes_h": 2.1,
+    "oblacnost_zitrek_pct": 90,
+    "slunce_zitrek_h": 2.0
   }
 ]
