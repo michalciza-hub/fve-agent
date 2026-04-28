@@ -814,6 +814,8 @@ import re as _re
 
 def telegram_cti_prikazy(stav, ceny, pocasi, session):
     """Precte nove zpravy z Telegramu a zpracuje prikazy."""
+    vysledek = {"manual_activated": False}
+
     # Nacti posledni update_id
     last_update_id = 0
     try:
@@ -830,17 +832,14 @@ def telegram_cti_prikazy(stav, ceny, pocasi, session):
         )
         data = resp.json()
         if not data.get("ok"):
-            return
+            return vysledek
         updates = data.get("result", [])
         if not updates:
-            return
+            return vysledek
 
-        # Uloz posledni update_id
-        new_last = updates[-1]["update_id"]
-        json.dump({"last_update_id": new_last}, open(TELEGRAM_UPDATES, "w"))
-        subprocess.run(["git", "add", TELEGRAM_UPDATES], capture_output=True)
-
+        processed_last = last_update_id
         for update in updates:
+            processed_last = max(processed_last, update["update_id"])
             msg = update.get("message", {})
             text = msg.get("text", "").strip()
             chat_id = str(msg.get("chat", {}).get("id", ""))
@@ -857,6 +856,7 @@ def telegram_cti_prikazy(stav, ceny, pocasi, session):
             if m:
                 minuty = int(m.group(1))
                 _zpracuj_manual(minuty)
+                vysledek["manual_activated"] = True
                 continue
 
             # [NABIJ]
@@ -873,8 +873,13 @@ def telegram_cti_prikazy(stav, ceny, pocasi, session):
             if _re.search(r'\[.+?\]', text_lower):
                 telegram("Neznam prikaz. Dostupne prikazy:\n[MANUAL<min>] - manualni rizeni\n[NABIJ] - nabij na 100%\n[STATUS] - aktualni stav")
 
+        # Update ID ukladame az po zpracovani, aby se prikaz neztratil pri chybe uprostred.
+        json.dump({"last_update_id": processed_last}, open(TELEGRAM_UPDATES, "w"))
+        subprocess.run(["git", "add", TELEGRAM_UPDATES], capture_output=True)
+
     except Exception as e:
         print(f"Telegram getUpdates chyba: {e}")
+    return vysledek
 
 
 def _zpracuj_manual(minuty):
@@ -947,8 +952,8 @@ def je_manual_override():
             expires_dt = datetime.strptime(expires_str, "%d.%m.%Y %H:%M").replace(tzinfo=TZ)
             now = datetime.now(TZ)
             if expires_dt > now:
-                zbyvá = int((expires_dt - now).total_seconds() / 60)
-                print(f"Manual override aktivni, zbývá {zbývá} min (do {expires_str})")
+                zbyva = int((expires_dt - now).total_seconds() / 60)
+                print(f"Manual override aktivni, zbyva {zbyva} min (do {expires_str})")
                 return True
             else:
                 # Override vypršel - smaž soubor a notifikuj
@@ -956,9 +961,27 @@ def je_manual_override():
                 subprocess.run(["git", "add", MANUAL_SOUBOR], capture_output=True)
                 telegram("Manuální řízení ukončeno. Obnovuji automatiku.")
                 print("Manual override vypršel, automatika obnovena")
-    except:
-        pass
+    except Exception as e:
+        print(f"Manual override chyba cteni: {e}")
     return False
+
+
+def ulozit_manual_zaznam(historie, cas, stav, ceny, pocasi, duvod="Manualni override aktivni"):
+    zaznam = {
+        "cas": cas, "mod": "MANUAL", "duvod": duvod,
+        "baterie_pct": stav.get("baterie_procent") if stav else None,
+        "baterie_w": stav.get("baterie_w") if stav else None,
+        "vyroba_w": stav.get("vyroba_w") if stav else None,
+        "spotreba_w": stav.get("spotreba_w") if stav else None,
+        "odber_site_w": stav.get("odber_site_w") if stav else None,
+        "cena_czk": ceny.get("aktualni") if ceny else None,
+        "cena_level": ceny.get("aktualni_level") if ceny else None,
+        "oblacnost_dnes_pct": pocasi["dnes"]["oblacnost"] if pocasi else None,
+        "slunce_dnes_h": pocasi["dnes"]["slunce_h"] if pocasi else None,
+        "oblacnost_zitrek_pct": pocasi["zitrek"]["oblacnost"] if pocasi else None,
+        "slunce_zitrek_h": pocasi["zitrek"]["slunce_h"] if pocasi else None,
+    }
+    return ulozit_zaznam(historie, zaznam)
 
 
 def je_nabij_override():
@@ -1008,27 +1031,12 @@ def main():
     denni = analyzovat_denni(ceny, stav or {}, hodina, minuta) if ceny else None
 
     # Zpracuj prikazy z Telegramu
-    telegram_cti_prikazy(stav, ceny, pocasi, session)
+    telegram_vysledek = telegram_cti_prikazy(stav, ceny, pocasi, session)
 
     # Zkontroluj manualni override - pokud aktivni, nic nedelej
-    if je_manual_override():
+    if telegram_vysledek.get("manual_activated") or je_manual_override():
         print("Manual override aktivni - preskakuji automatiku")
-        # Uloz zaznam ale bez zmeny modu
-        zaznam = {
-            "cas": cas, "mod": "MANUAL", "duvod": "Manualni override aktivni",
-            "baterie_pct": stav.get("baterie_procent") if stav else None,
-            "baterie_w": stav.get("baterie_w") if stav else None,
-            "vyroba_w": stav.get("vyroba_w") if stav else None,
-            "spotreba_w": stav.get("spotreba_w") if stav else None,
-            "odber_site_w": stav.get("odber_site_w") if stav else None,
-            "cena_czk": ceny.get("aktualni") if ceny else None,
-            "cena_level": ceny.get("aktualni_level") if ceny else None,
-            "oblacnost_dnes_pct": pocasi["dnes"]["oblacnost"] if pocasi else None,
-            "slunce_dnes_h": pocasi["dnes"]["slunce_h"] if pocasi else None,
-            "oblacnost_zitrek_pct": pocasi["zitrek"]["oblacnost"] if pocasi else None,
-            "slunce_zitrek_h": pocasi["zitrek"]["slunce_h"] if pocasi else None,
-        }
-        historie = ulozit_zaznam(historie, zaznam)
+        historie = ulozit_manual_zaznam(historie, cas, stav, ceny, pocasi)
         commitnout_historii()
         print("\nHotovo (manual)")
         return
@@ -1071,6 +1079,17 @@ def main():
 
     if not session:
         telegram(f"FVE Agent {cas}: nelze se prihlasit na portal!")
+        return
+
+    # Posledni pojistka tesne pred zmenou portalu.
+    if je_manual_override():
+        print("Manual override aktivni pred nastavenim modu - portal nemenim")
+        historie = ulozit_manual_zaznam(
+            historie, cas, stav, ceny, pocasi,
+            "Manualni override aktivni pred nastavenim modu"
+        )
+        commitnout_historii()
+        print("\nHotovo (manual)")
         return
 
     uspech = nastavit_mod(session, novy_mod)
