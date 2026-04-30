@@ -68,15 +68,24 @@ MODY_LABEL = {
 
 def telegram(zprava: str):
     try:
-        requests.post(
+        resp = requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
             json={"chat_id": TELEGRAM_CHAT_ID, "text": zprava,
-                  "parse_mode": "HTML", "disable_notification": False},
+                  "disable_notification": False},
             timeout=10,
         )
+        try:
+            data = resp.json()
+        except Exception:
+            data = {}
+        if resp.status_code != 200 or not data.get("ok", False):
+            print(f"Telegram chyba HTTP/API: status={resp.status_code} body={resp.text[:200]}")
+            return False
         print("Telegram: odeslano")
+        return True
     except Exception as e:
         print(f"Telegram chyba: {e}")
+        return False
 
 # ============================================================
 # PRIHLASENI
@@ -1072,10 +1081,16 @@ def main():
             json.dump({"datum": dnes_str}, open(plan_soubor, "w"))
             subprocess.run(["git", "add", plan_soubor], capture_output=True)
 
-    predchozi = nacist_aktualni_mod(session)
-    novy_mod, duvod = rozhodnout(stav, ceny, pocasi, nocni, denni, predchozi, hodina)
+    predchozi_portal = nacist_aktualni_mod(session)
+    predchozi_agent = nacist_aktualni_mod_ze_souboru()
+    novy_mod, duvod = rozhodnout(stav, ceny, pocasi, nocni, denni, predchozi_portal, hodina)
     print(f"\nRozhodnuti: {MODY_LABEL.get(novy_mod, novy_mod)} - {duvod}")
-    print(f"DEBUG: predchozi={predchozi} novy={novy_mod} zmena={'ANO' if novy_mod != predchozi else 'NE'}")
+    print(
+        f"DEBUG: predchozi_portal={predchozi_portal} "
+        f"predchozi_agent={predchozi_agent} novy={novy_mod} "
+        f"zmena_agent={'ANO' if novy_mod != predchozi_agent else 'NE'} "
+        f"zmena_portal={'ANO' if novy_mod != predchozi_portal else 'NE'}"
+    )
 
     if not session:
         telegram(f"FVE Agent {cas}: nelze se prihlasit na portal!")
@@ -1092,30 +1107,54 @@ def main():
         print("\nHotovo (manual)")
         return
 
-    uspech = nastavit_mod(session, novy_mod)
-    print(f"DEBUG: nastavit_mod uspech={uspech}")
+    portal_potrebuje_zmenu = novy_mod != predchozi_portal
+    portal_zmenen_mimo_agenta = predchozi_portal != predchozi_agent
+
+    if portal_potrebuje_zmenu:
+        uspech = nastavit_mod(session, novy_mod)
+        print(f"DEBUG: nastavit_mod uspech={uspech}")
+    else:
+        uspech = True
+        print("DEBUG: portal uz je v pozadovanem modu - nastavit_mod nevolam")
+
     if uspech:
         ulozit_aktualni_mod(novy_mod)
 
-    if uspech and novy_mod != predchozi:
-        bat      = f"{stav['baterie_procent']:.0f}%" if stav else "?"
-        vyroba   = f"{stav['vyroba_w']:.0f} W"       if stav else "?"
-        spotreba = f"{stav['spotreba_w']:.0f} W"      if stav else "?"
-        odber    = f"{stav['odber_site_w']:.0f} W"    if stav else "?"
-        cena_t   = f"{ceny['aktualni']} Kc/kWh"       if ceny else "?"
-        # Info o analyze (denni/nocni nabijeni)
-        analyza_info = ""
-        if denni and denni.get("vyhodni"):
-            analyza_info = f"\nDenni nabijeni: {denni['prumer_levne']} Kc/kWh, spread {denni['spread']} Kc, oblacnost {pocasi['dnes']['oblacnost'] if pocasi else '?'}%, konec {denni['konec_levneho']:02d}:00"
-        elif nocni and nocni.get("vyhodni"):
-            analyza_info = f"\nNocni nabijeni: {nocni['nejlevnejsi_cena']} Kc/kWh, spread {nocni['spread']} Kc, cil {nocni['cil_soc']}%"
+    bat      = f"{stav['baterie_procent']:.0f}%" if stav else "?"
+    vyroba   = f"{stav['vyroba_w']:.0f} W"       if stav else "?"
+    spotreba = f"{stav['spotreba_w']:.0f} W"      if stav else "?"
+    odber    = f"{stav['odber_site_w']:.0f} W"    if stav else "?"
+    cena_t   = f"{ceny['aktualni']} Kc/kWh"       if ceny else "?"
+    # Info o analyze (denni/nocni nabijeni)
+    analyza_info = ""
+    if denni and denni.get("vyhodni"):
+        analyza_info = f"\nDenni nabijeni: {denni['prumer_levne']} Kc/kWh, spread {denni['spread']} Kc, oblacnost {pocasi['dnes']['oblacnost'] if pocasi else '?'}%, konec {denni['konec_levneho']:02d}:00"
+    elif nocni and nocni.get("vyhodni"):
+        analyza_info = f"\nNocni nabijeni: {nocni['nejlevnejsi_cena']} Kc/kWh, spread {nocni['spread']} Kc, cil {nocni['cil_soc']}%"
 
+    if uspech and portal_potrebuje_zmenu:
         zprava = (
             f"FVE Agent {cas}\n\n"
             f"Zmena modu:\n"
-            f"  {MODY_LABEL.get(predchozi, predchozi)}\n"
+            f"  {MODY_LABEL.get(predchozi_portal, predchozi_portal)}\n"
             f"  ->\n"
             f"  {MODY_LABEL.get(novy_mod, novy_mod)}\n\n"
+            f"Stav:\n"
+            f"  Baterie: {bat}\n"
+            f"  Vyroba FVE: {vyroba}\n"
+            f"  Spotreba: {spotreba}\n"
+            f"  Odber site: {odber}\n"
+            f"  Cena spot: {cena_t}\n\n"
+            f"{duvod}{analyza_info}"
+        )
+        telegram(zprava)
+    elif uspech and portal_zmenen_mimo_agenta:
+        zprava = (
+            f"FVE Agent {cas}\n\n"
+            f"Detekovana zmena modu v portalu mimo agenta:\n"
+            f"  pamet agenta: {MODY_LABEL.get(predchozi_agent, predchozi_agent)}\n"
+            f"  portal: {MODY_LABEL.get(predchozi_portal, predchozi_portal)}\n\n"
+            f"Agent portal nemenil, aktualni mod odpovida rozhodnuti.\n\n"
             f"Stav:\n"
             f"  Baterie: {bat}\n"
             f"  Vyroba FVE: {vyroba}\n"
