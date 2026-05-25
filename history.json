@@ -1,21 +1,5 @@
 [
   {
-    "cas": "17.05.2026 20:45",
-    "mod": "DEFAULT",
-    "duvod": "Standardni provoz",
-    "baterie_pct": 80.0,
-    "baterie_w": -767.0,
-    "vyroba_w": 0.0,
-    "spotreba_w": 895.0,
-    "odber_site_w": 734.0,
-    "cena_czk": 3.79,
-    "cena_level": "high",
-    "oblacnost_dnes_pct": 57,
-    "slunce_dnes_h": 12.1,
-    "oblacnost_zitrek_pct": 61,
-    "slunce_zitrek_h": 11.6
-  },
-  {
     "cas": "17.05.2026 21:00",
     "mod": "DEFAULT",
     "duvod": "Standardni provoz",
@@ -11517,6 +11501,22 @@
     "oblacnost_dnes_pct": 4,
     "slunce_dnes_h": 14.2,
     "oblacnost_zitrek_pct": 2,
+    "slunce_zitrek_h": 14.5
+  },
+  {
+    "cas": "25.05.2026 09:30",
+    "mod": "BLOCKING_GRID_OVERFLOW",
+    "duvod": "Cena 0.005 Kc < prah 0.45 Kc - blokuji pretoky",
+    "baterie_pct": 51.0,
+    "baterie_w": 4545.0,
+    "vyroba_w": 5287.0,
+    "spotreba_w": 894.0,
+    "odber_site_w": 156.0,
+    "cena_czk": 0.005,
+    "cena_level": "low",
+    "oblacnost_dnes_pct": 7,
+    "slunce_dnes_h": 14.2,
+    "oblacnost_zitrek_pct": 0,
     "slunce_zitrek_h": 14.5
   }
 ]
