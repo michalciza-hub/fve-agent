@@ -1,21 +1,5 @@
 [
   {
-    "cas": "29.05.2026 03:45",
-    "mod": "DEFAULT",
-    "duvod": "Standardni provoz",
-    "baterie_pct": 9.0,
-    "baterie_w": 131.0,
-    "vyroba_w": 0.0,
-    "spotreba_w": 761.0,
-    "odber_site_w": 745.0,
-    "cena_czk": 3.024,
-    "cena_level": "medium",
-    "oblacnost_dnes_pct": 12,
-    "slunce_dnes_h": 14.9,
-    "oblacnost_zitrek_pct": 73,
-    "slunce_zitrek_h": 12.6
-  },
-  {
     "cas": "29.05.2026 04:00",
     "mod": "DEFAULT",
     "duvod": "Standardni provoz",
@@ -11518,5 +11502,21 @@
     "slunce_dnes_h": 5.1,
     "oblacnost_zitrek_pct": 52,
     "slunce_zitrek_h": 13.1
+  },
+  {
+    "cas": "05.06.2026 15:45",
+    "mod": "SAVING_TO_BATTERY",
+    "duvod": "Denni nabijeni: 1.057 Kc/kWh, spread 3.329 Kc, oblacnost 86%, konec 15:00",
+    "baterie_pct": 86.0,
+    "baterie_w": -2919.0,
+    "vyroba_w": 651.0,
+    "spotreba_w": 3694.0,
+    "odber_site_w": -267.0,
+    "cena_czk": 1.834,
+    "cena_level": "medium",
+    "oblacnost_dnes_pct": 86,
+    "slunce_dnes_h": 6.8,
+    "oblacnost_zitrek_pct": 64,
+    "slunce_zitrek_h": 12.4
   }
 ]
