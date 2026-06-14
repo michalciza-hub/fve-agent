@@ -1,21 +1,5 @@
 [
   {
-    "cas": "06.06.2026 16:45",
-    "mod": "DEFAULT",
-    "duvod": "Baterie 100% - dostatecne nabita",
-    "baterie_pct": 100.0,
-    "baterie_w": 98.0,
-    "vyroba_w": 3121.0,
-    "spotreba_w": 1397.0,
-    "odber_site_w": -1764.0,
-    "cena_czk": 1.857,
-    "cena_level": "medium",
-    "oblacnost_dnes_pct": 67,
-    "slunce_dnes_h": 14.0,
-    "oblacnost_zitrek_pct": 45,
-    "slunce_zitrek_h": 15.0
-  },
-  {
     "cas": "06.06.2026 17:00",
     "mod": "USING_FROM_GRID_INSTEAD_OF_BATTERY",
     "duvod": "Cena 1.331 Kc < opotrebeni baterie 1.67 Kc - setrim baterii",
@@ -11518,5 +11502,21 @@
     "slunce_dnes_h": 10.6,
     "oblacnost_zitrek_pct": 65,
     "slunce_zitrek_h": 13.2
+  },
+  {
+    "cas": "14.06.2026 05:00",
+    "mod": "BLOCKING_GRID_OVERFLOW",
+    "duvod": "Cena 0.374 Kc < prah 0.45 Kc - blokuji pretoky",
+    "baterie_pct": 61.0,
+    "baterie_w": 124.0,
+    "vyroba_w": 0.0,
+    "spotreba_w": 477.0,
+    "odber_site_w": 451.0,
+    "cena_czk": 0.374,
+    "cena_level": "low",
+    "oblacnost_dnes_pct": 74,
+    "slunce_dnes_h": 13.2,
+    "oblacnost_zitrek_pct": 69,
+    "slunce_zitrek_h": 12.6
   }
 ]
