@@ -1,21 +1,5 @@
 [
   {
-    "cas": "12.06.2026 18:30",
-    "mod": "DEFAULT",
-    "duvod": "Standardni provoz",
-    "baterie_pct": 10.0,
-    "baterie_w": 143.0,
-    "vyroba_w": 375.0,
-    "spotreba_w": 11252.0,
-    "odber_site_w": 10771.0,
-    "cena_czk": 2.98,
-    "cena_level": "high",
-    "oblacnost_dnes_pct": 92,
-    "slunce_dnes_h": 0.3,
-    "oblacnost_zitrek_pct": 85,
-    "slunce_zitrek_h": 12.4
-  },
-  {
     "cas": "12.06.2026 18:45",
     "mod": "DEFAULT",
     "duvod": "Standardni provoz",
@@ -11518,5 +11502,21 @@
     "slunce_dnes_h": 12.3,
     "oblacnost_zitrek_pct": 37,
     "slunce_zitrek_h": 12.3
+  },
+  {
+    "cas": "20.06.2026 06:45",
+    "mod": "DEFAULT",
+    "duvod": "Cekam na optimalni cas nabijeni 14:33",
+    "baterie_pct": 10.0,
+    "baterie_w": 120.0,
+    "vyroba_w": 565.0,
+    "spotreba_w": 1401.0,
+    "odber_site_w": 718.0,
+    "cena_czk": 2.421,
+    "cena_level": "medium",
+    "oblacnost_dnes_pct": 46,
+    "slunce_dnes_h": 14.2,
+    "oblacnost_zitrek_pct": 43,
+    "slunce_zitrek_h": 11.4
   }
 ]
