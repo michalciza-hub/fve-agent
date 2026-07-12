@@ -1,21 +1,5 @@
 [
   {
-    "cas": "04.07.2026 18:00",
-    "mod": "USING_FROM_GRID_INSTEAD_OF_BATTERY",
-    "duvod": "Cena 0.571 Kc < opotrebeni baterie 1.67 Kc - setrim baterii",
-    "baterie_pct": 96.0,
-    "baterie_w": 312.0,
-    "vyroba_w": 776.0,
-    "spotreba_w": 653.0,
-    "odber_site_w": -40.0,
-    "cena_czk": 0.571,
-    "cena_level": "low",
-    "oblacnost_dnes_pct": 84,
-    "slunce_dnes_h": 8.0,
-    "oblacnost_zitrek_pct": 92,
-    "slunce_zitrek_h": 2.7
-  },
-  {
     "cas": "04.07.2026 18:15",
     "mod": "USING_FROM_GRID_INSTEAD_OF_BATTERY",
     "duvod": "Cena 1.578 Kc < 1.82 Kc - pokracuji v setreni baterie",
@@ -11518,5 +11502,21 @@
     "slunce_dnes_h": 15.0,
     "oblacnost_zitrek_pct": 39,
     "slunce_zitrek_h": 15.0
+  },
+  {
+    "cas": "12.07.2026 06:31",
+    "mod": "DEFAULT",
+    "duvod": "Cekam na optimalni cas nabijeni 15:45",
+    "baterie_pct": 22.0,
+    "baterie_w": -374.0,
+    "vyroba_w": 206.0,
+    "spotreba_w": 743.0,
+    "odber_site_w": 16.0,
+    "cena_czk": 2.668,
+    "cena_level": "high",
+    "oblacnost_dnes_pct": 57,
+    "slunce_dnes_h": 15.2,
+    "oblacnost_zitrek_pct": 43,
+    "slunce_zitrek_h": 13.6
   }
 ]
