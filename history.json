@@ -1,21 +1,5 @@
 [
   {
-    "cas": "30.07.2026 14:31",
-    "mod": "DEFAULT",
-    "duvod": "Cena 0.883 Kc nad prahem 0.65 Kc - pretoky povoleny",
-    "baterie_pct": 100.0,
-    "baterie_w": 105.0,
-    "vyroba_w": 715.0,
-    "spotreba_w": 865.0,
-    "odber_site_w": 116.0,
-    "cena_czk": 0.883,
-    "cena_level": "low",
-    "oblacnost_dnes_pct": 20,
-    "slunce_dnes_h": 14.2,
-    "oblacnost_zitrek_pct": 81,
-    "slunce_zitrek_h": 13.4
-  },
-  {
     "cas": "30.07.2026 14:45",
     "mod": "DEFAULT",
     "duvod": "Baterie 100% - dostatecne nabita",
@@ -11517,6 +11501,22 @@
     "oblacnost_dnes_pct": 22,
     "slunce_dnes_h": 14.1,
     "oblacnost_zitrek_pct": 1,
+    "slunce_zitrek_h": 14.0
+  },
+  {
+    "cas": "07.08.2026 06:30",
+    "mod": "DEFAULT",
+    "duvod": "Standardni provoz",
+    "baterie_pct": 15.0,
+    "baterie_w": -512.0,
+    "vyroba_w": 42.0,
+    "spotreba_w": 681.0,
+    "odber_site_w": 19.0,
+    "cena_czk": 4.064,
+    "cena_level": "medium",
+    "oblacnost_dnes_pct": 18,
+    "slunce_dnes_h": 14.1,
+    "oblacnost_zitrek_pct": 3,
     "slunce_zitrek_h": 14.0
   }
 ]
