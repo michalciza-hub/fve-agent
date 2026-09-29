@@ -1,21 +1,5 @@
 [
   {
-    "cas": "22.09.2026 11:30",
-    "mod": "DEFAULT",
-    "duvod": "Standardni provoz",
-    "baterie_pct": 37.0,
-    "baterie_w": 3260.0,
-    "vyroba_w": 6192.0,
-    "spotreba_w": 2709.0,
-    "odber_site_w": 20.0,
-    "cena_czk": 3.569,
-    "cena_level": "low",
-    "oblacnost_dnes_pct": 68,
-    "slunce_dnes_h": 9.8,
-    "oblacnost_zitrek_pct": 32,
-    "slunce_zitrek_h": 11.6
-  },
-  {
     "cas": "22.09.2026 11:45",
     "mod": "DEFAULT",
     "duvod": "Standardni provoz",
@@ -11518,5 +11502,21 @@
     "slunce_dnes_h": 10.8,
     "oblacnost_zitrek_pct": 44,
     "slunce_zitrek_h": 10.2
+  },
+  {
+    "cas": "30.09.2026 00:01",
+    "mod": "USING_FROM_GRID_INSTEAD_OF_BATTERY",
+    "duvod": "Cena 1.662 Kc < 1.82 Kc - pokracuji v setreni baterie",
+    "baterie_pct": 17.0,
+    "baterie_w": -13.0,
+    "vyroba_w": 0.0,
+    "spotreba_w": 435.0,
+    "odber_site_w": 273.0,
+    "cena_czk": 1.662,
+    "cena_level": "low",
+    "oblacnost_dnes_pct": 44,
+    "slunce_dnes_h": 10.2,
+    "oblacnost_zitrek_pct": 53,
+    "slunce_zitrek_h": 10.4
   }
 ]
