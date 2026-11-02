@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       force_run:
-        description: 'Vynutit plný běh s Claude AI (ignorovat časový cyklus)'
+        description: 'Vynutit běh agenta (zpětná kompatibilita)'
         required: false
         default: 'false'
         type: choice
@@ -40,7 +40,6 @@ jobs:
           PORTAL_PASSWORD:   ${{ secrets.PORTAL_PASSWORD }}
           PORTAL_SESSION:    ${{ secrets.PORTAL_SESSION }}
           PORTAL_CSRF:       ${{ secrets.PORTAL_CSRF }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TELEGRAM_TOKEN:    ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID:  ${{ secrets.TELEGRAM_CHAT_ID }}
           FVE_LAT:           ${{ secrets.FVE_LAT }}

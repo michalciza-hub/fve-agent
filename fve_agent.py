@@ -2,7 +2,7 @@
 FVE Agent - proteus.deltagreen.cz
 ===================================
 Jedna vrstva, 4 pravidla, bez AI, spousti se kazdych 10 minut.
-Nocni report s Claude AI se posila jednou denne o pulnoci.
+Telegram posila provozni zpravy, bez denniho planu a souhrnu.
 
 PRAVIDLA (priorita):
   1. BLOCKING_GRID_OVERFLOW  - cena < 0.45 Kc
@@ -32,7 +32,6 @@ PORTAL_SESSION    = os.environ["PORTAL_SESSION"]
 PORTAL_CSRF       = os.environ["PORTAL_CSRF"]
 TELEGRAM_TOKEN    = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID  = os.environ["TELEGRAM_CHAT_ID"]
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 LATITUDE  = float(os.environ.get("FVE_LAT", "50.6270"))
 LONGITUDE = float(os.environ.get("FVE_LON", "14.0754"))
@@ -48,7 +47,6 @@ NOCNI_MAX_SOC          = 80
 NOCNI_TOLERANCE_CZK    = 0.3
 
 HISTORIE_SOUBOR      = "history.json"
-REPORT_SOUBOR        = "last_report.json"
 MOD_SOUBOR           = "current_mode.json"
 MANUAL_SOUBOR        = "manual_override.json"
 TELEGRAM_UPDATES     = "telegram_updates.json"
@@ -570,252 +568,6 @@ def nastavit_mod(session, mod):
         return False
 
 # ============================================================
-# DENNI PLAN
-# ============================================================
-
-def denni_plan(ceny, pocasi):
-    print("Denni plan...")
-    if not ceny:
-        telegram("FVE Denni plan: nepodařilo se načíst ceny.")
-        return
-    dnes = ceny.get("vsechny_15min", [])
-    def hp(h):
-        blok = dnes[h*4:(h+1)*4]
-        return round(sum(blok)/len(blok), 3) if len(blok) == 4 else None
-    levne  = [h for h in range(24) if (hp(h) or 999) < 1.5]
-    drahe  = [h for h in range(24) if (hp(h) or 0) > 3.5]
-    zaporne = [h for h in range(24) if (hp(h) or 0) < 0]
-    def fmt(hh): return ", ".join(f"{h}:00" for h in hh) if hh else "zadne"
-    z = pocasi.get("zitrek", {}) if pocasi else {}
-    zprava = (
-        f"FVE Denni plan {datetime.now(TZ).strftime('%d.%m.%Y')}\n\n"
-        f"Ceny dnes: min {min(dnes):.3f} Kc | max {max(dnes):.3f} Kc | prumer {round(sum(dnes)/len(dnes),3)} Kc\n\n"
-        f"Levne hodiny (<1.5 Kc): {fmt(levne)}\n"
-        f"Drahe hodiny (>3.5 Kc): {fmt(drahe)}\n"
-        f"Zaporne ceny: {fmt(zaporne)}\n\n"
-        f"Zitra: {z.get('oblacnost','?')}% oblacnost, {z.get('slunce_h','?')}h slunce"
-    )
-    telegram(zprava)
-
-
-
-# ============================================================
-# NOCNI REPORT (00:00) - souhrn vcerejska + plan na dnes
-# ============================================================
-
-def claude_dotaz(prompt):
-    if not ANTHROPIC_API_KEY:
-        return None
-    try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-sonnet-4-20250514",
-                "max_tokens": 600,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=30,
-        )
-        return resp.json()["content"][0]["text"].strip()
-    except Exception as e:
-        print(f"   Claude chyba: {e}")
-        return None
-
-
-def nocni_report(historie, ceny, pocasi):
-    print("Sestavuji nocni report...")
-    now       = datetime.now(TZ)
-    vcera     = (now - timedelta(days=1)).strftime("%d.%m.%Y")
-    dnes      = now.strftime("%d.%m.%Y")
-    vcera_str = (now - timedelta(days=1)).strftime("%d.%m.%Y")  # format jako v historii: DD.MM.YYYY
-
-    # --- ZPRAVA 1: Souhrn vcerejska ---
-    zaznamy = [z for z in historie if z.get("cas", "").startswith(vcera_str)]
-    print(f"Report: hledam zaznamy pro {vcera_str}, nalezeno {len(zaznamy)} z {len(historie)} celkem")
-    if len(historie) > 0:
-        print(f"Report: prvni zaznam: {historie[0].get('cas')}, posledni: {historie[-1].get('cas')}")
-    if zaznamy:
-        radky = []
-        for z in zaznamy:
-            cas_z    = z.get("cas", "?").split(" ")[-1]
-            mod_z    = MODY_LABEL.get(z.get("mod", "DEFAULT"), z.get("mod", "DEFAULT"))
-            cena_z   = z.get("cena_czk", "?")
-            bat_z    = z.get("baterie_pct", "?")
-            vyroba_z = z.get("vyroba_w", "?")
-            duvod_z  = z.get("duvod", "")
-            radky.append(f"{cas_z} | {mod_z} | bat:{bat_z}% | FVE:{vyroba_z}W | {cena_z} Kc | {duvod_z}")
-        oblacnost = zaznamy[0].get("oblacnost_dnes_pct", "?")
-        slunce    = zaznamy[0].get("slunce_dnes_h", "?")
-        log_text  = "\n".join(radky)
-
-        prompt1 = (
-            "Jsi asistent ktery sleduje fotovoltaickou elektrarnu s baterii.\n"
-            "Napiste kratke lidske shrnuti 3-5 vet cesky co agent FVE delal dne " + vcera + ".\n"
-            "Vysvetli proc se rozhodoval tak jak se rozhodoval ve vztahu k cenam a pocasi.\n"
-            "But konkretni - zmín kdy nabil, kdy setril baterii, kdy blokoval pretoky a proc.\n\n"
-            "Pocasi: oblacnost " + str(oblacnost) + "%, slunce " + str(slunce) + "h\n\n"
-            "Zaznamy:\n" + log_text + "\n\n"
-            "Detailni logika agenta:\n"
-            "\n"
-            "DETAILNI LOGIKA AGENTA (4 pravidla, vyhodnocuji se v tomto poradi):\n"
-            "\n"
-            "PRAVIDLO 1 - BLOCKING_GRID_OVERFLOW (zakaz pretoku do site):\n"
-            "  ZAPNUTI: cena < 0.45 Kc/kWh (pod vykupnim prahem dodavatele - pretok prodelava)\n"
-            "  VYPNUTI: cena >= 0.45 Kc -> DEFAULT\n"
-            "  Poznamka: FVE si sama poresi co dela s prebytkem (omezi vyroba nebo nabiji baterii)\n"
-            "\n"
-            "PRAVIDLO 2 - SAVING_TO_BATTERY nocni (00:00-05:59):\n"
-            "  ZAPNUTI: spread = (prumer ranni spicky 06:00-09:00) - (nejlevnejsi nocni hodina) >= 1.8 Kc\n"
-            "           AND aktualni cena je nejlevnejsi nebo max 0.3 Kc nad minimem noci\n"
-            "           AND baterie < 80%\n"
-            "  POKRACOVANI: baterie < 80% -> pokracuj v nabijeni az do 80%\n"
-            "  VYPNUTI: baterie >= 80% -> DEFAULT\n"
-            "  Poznamka: ceka na nejlevnejsi hodinu, nenabiji driv\n"
-            "\n"
-            "PRAVIDLO 3 - SAVING_TO_BATTERY denni (06:00-21:00):\n"
-            "  ZAPNUTI: spread = (vecerni spicka) - (prumer levnych hodin pod 1.5 Kc) >= 1.8 Kc\n"
-            "           AND aktualni cas >= (konec levneho obdobi - potrebny cas nabijeni)\n"
-            "           AND baterie < 90%\n"
-            "           AND (oblacnost >= 70% NEBO prebytek FVE < 500W)\n"
-            "           Dulezite: pokud sviti slunce (oblacnost < 70%) a FVE vyrabi prebytek > 500W,\n"
-            "           baterie se nabiji z FVE zadarmo - sitove nabijeni se NEAKTIVUJE\n"
-            "  POKRACOVANI: cena < prumer_levneho * 2.0 AND baterie < 90% -> pokracuj\n"
-            "  VYPNUTI: cena prekrocila levne obdobi NEBO baterie >= 90% -> DEFAULT\n"
-            "  Cas zahajeni: konec_levneho - (zbyvajici_kWh / 5.5kW vykon nabijeni)\n"
-            "\n"
-            "PRAVIDLO 4 - USING_FROM_GRID_INSTEAD_OF_BATTERY (setreni baterie):\n"
-            "  ZAPNUTI: cena < 1.67 Kc/kWh (levnejsi nez opotrebeni baterie)\n"
-            "  VYPNUTI: cena >= 1.67 Kc -> DEFAULT\n"
-            "  Dulezite: mód drzi dokud cena nevystoupi, nezavisi na stavu baterie ani vyrobe FVE\n"
-            "\n"
-            "DEFAULT - vychozi rezim:\n"
-            "  FVE nabiji baterii z vlastni vyroba, baterie pokryva spotrebu,\n"
-            "  prebytky jdou do site za aktualni vykupni cenu\n"
-            "\n\n"
-            "Napiste pouze text shrnuti bez nadpisu."
-        )
-        shrnuti = claude_dotaz(prompt1)
-        zprava1 = ("FVE Report " + vcera + "\n\n" + shrnuti) if shrnuti else ("FVE Report " + vcera + " - nelze sestavit shrnuti.")
-    else:
-        # Pokus o predvcerejsi data (kdyby report bezi pred commitem 23:50)
-        predvcerejsi_dt  = now - timedelta(days=2)
-        predvcerejsi_str = predvcerejsi_dt.strftime("%d.%m.%Y")
-        zaznamy2 = [z for z in historie if z.get("cas", "").startswith(predvcerejsi_str)]
-        print(f"Report fallback: hledam {predvcerejsi_str}, nalezeno {len(zaznamy2)}")
-        if zaznamy2:
-            zprava1 = "FVE Report " + vcera + " (data z " + predvcerejsi_str + " - vcera zatim bez zaznamu)\n\nData nejsou k dispozici, zkuste znovu."
-        else:
-            zprava1 = "FVE Report " + vcera + " - zadne zaznamy v historii."
-    telegram(zprava1)
-
-    # --- ZPRAVA 2: Plan na dnes ---
-    if not ceny or not pocasi:
-        telegram("FVE Plan " + dnes + " - chybi data.")
-        return
-
-    dnes_data = ceny.get("vsechny_15min", [])
-
-    def hp(h):
-        blok = dnes_data[h*4:(h+1)*4]
-        return round(sum(blok)/len(blok), 3) if len(blok) == 4 else None
-
-    radky_cen = []
-    for h in range(24):
-        c = hp(h)
-        if c is not None:
-            if c < 0:       u = "zaporna"
-            elif c < 0.45:  u = "pod vykupem"
-            elif c < 1.5:   u = "levna"
-            elif c < 1.67:  u = "pod opotrebenim"
-            elif c < 3.5:   u = "stredni"
-            else:            u = "draha spicka"
-            radky_cen.append(f"  {h:02d}:00 = {c} Kc ({u})")
-
-    stav_dummy = {"baterie_procent": 50}
-    nocni_a = analyzovat_nocni(ceny, stav_dummy, 1, 0)
-    denni_a = analyzovat_denni(ceny, stav_dummy, 10, 0)
-
-    nocni_info = ""
-    if nocni_a:
-        nocni_info = (
-            "Nocni nabijeni: nejlevnejsi " + str(nocni_a["nejlevnejsi_h"]) + ":00"
-            " (" + str(nocni_a["nejlevnejsi_cena"]) + " Kc),"
-            " ranni spicka " + str(nocni_a["ranni_spicka"]) + " Kc,"
-            " spread " + str(nocni_a["spread"]) + " Kc"
-            " (minimum pro nabijeni je " + str(NABIJENI_MIN_SPREAD) + " Kc)"
-            " - " + ("AGENT NABIJI ze site" if nocni_a["vyhodni"] else "AGENT NENABIJI ze site - spread neni dostatecny")
-        )
-    else:
-        nocni_info = "Nocni nabijeni: spread neni dostatecny nebo analyza neni dostupna - AGENT NENABIJI ze site"
-    denni_info = ""
-    if denni_a:
-        denni_info = (
-            "Denni nabijeni: prumer levneho " + str(denni_a["prumer_levne"]) + " Kc,"
-            " vecerni spicka " + str(denni_a["spicka"]) + " Kc,"
-            " spread " + str(denni_a["spread"]) + " Kc,"
-            " konec levneho " + str(denni_a["konec_levneho"]) + ":00"
-        )
-
-    prompt2 = (
-        "Jsi asistent ktery planuje provoz fotovoltaicke elektrarny s baterii.\n"
-        "Napiste kratky lidsky plan 4-6 vet cesky co agent FVE bude delat dne " + dnes + ".\n"
-        "Vysvetli kdy se ocekava nabijeni ze site, setreni baterie, blokovani pretoku.\n"
-        "Zmín konkretni hodiny a ceny. But prakticky.\n\n"
-        "Pocasi " + dnes + ": oblacnost " + str(pocasi["dnes"]["oblacnost"]) + "%, slunce " + str(pocasi["dnes"]["slunce_h"]) + "h\n"
-        "Pocasi zitra: oblacnost " + str(pocasi["zitrek"]["oblacnost"]) + "%, slunce " + str(pocasi["zitrek"]["slunce_h"]) + "h\n\n"
-        + nocni_info + "\n" + denni_info + "\n\n"
-        "Hodinove ceny:\n" + "\n".join(radky_cen) + "\n\n"
-        "Detailni logika agenta:\n"
-        "\n"
-        "DETAILNI LOGIKA AGENTA (4 pravidla, vyhodnocuji se v tomto poradi):\n"
-        "\n"
-        "PRAVIDLO 1 - BLOCKING_GRID_OVERFLOW (zakaz pretoku do site):\n"
-        "  ZAPNUTI: cena < 0.45 Kc/kWh (pod vykupnim prahem dodavatele - pretok prodelava)\n"
-        "  VYPNUTI: cena >= 0.45 Kc -> DEFAULT\n"
-        "  Poznamka: FVE si sama poresi co dela s prebytkem (omezi vyroba nebo nabiji baterii)\n"
-        "\n"
-        "PRAVIDLO 2 - SAVING_TO_BATTERY nocni (00:00-05:59):\n"
-        "  ZAPNUTI: spread = (prumer ranni spicky 06:00-09:00) - (nejlevnejsi nocni hodina) >= 1.8 Kc\n"
-        "           AND aktualni cena je nejlevnejsi nebo max 0.3 Kc nad minimem noci\n"
-        "           AND baterie < 80%\n"
-        "  POKRACOVANI: baterie < 80% -> pokracuj v nabijeni az do 80%\n"
-        "  VYPNUTI: baterie >= 80% -> DEFAULT\n"
-        "  Poznamka: ceka na nejlevnejsi hodinu, nenabiji driv\n"
-        "\n"
-        "PRAVIDLO 3 - SAVING_TO_BATTERY denni (06:00-21:00):\n"
-        "  ZAPNUTI: spread = (vecerni spicka) - (prumer levnych hodin pod 1.5 Kc) >= 1.8 Kc\n"
-        "           AND aktualni cas >= (konec levneho obdobi - potrebny cas nabijeni)\n"
-        "           AND baterie < 90%\n"
-        "           AND (oblacnost >= 70% NEBO prebytek FVE < 500W)\n"
-        "           Dulezite: pokud sviti slunce (oblacnost < 70%) a FVE vyrabi prebytek > 500W,\n"
-        "           baterie se nabiji z FVE zadarmo - sitove nabijeni se NEAKTIVUJE\n"
-        "  POKRACOVANI: cena < prumer_levneho * 2.0 AND baterie < 90% -> pokracuj\n"
-        "  VYPNUTI: cena prekrocila levne obdobi NEBO baterie >= 90% -> DEFAULT\n"
-        "  Cas zahajeni: konec_levneho - (zbyvajici_kWh / 5.5kW vykon nabijeni)\n"
-        "\n"
-        "PRAVIDLO 4 - USING_FROM_GRID_INSTEAD_OF_BATTERY (setreni baterie):\n"
-        "  ZAPNUTI: cena < 1.67 Kc/kWh (levnejsi nez opotrebeni baterie)\n"
-        "  VYPNUTI: cena >= 1.67 Kc -> DEFAULT\n"
-        "  Dulezite: mód drzi dokud cena nevystoupi, nezavisi na stavu baterie ani vyrobe FVE\n"
-        "\n"
-        "DEFAULT - vychozi rezim:\n"
-        "  FVE nabiji baterii z vlastni vyroba, baterie pokryva spotrebu,\n"
-        "  prebytky jdou do site za aktualni vykupni cenu\n"
-        "\n\n"
-        "Napiste pouze text planu bez nadpisu."
-    )
-    plan = claude_dotaz(prompt2)
-    zprava2 = ("FVE Plan " + dnes + "\n\n" + plan) if plan else ("FVE Plan " + dnes + " - nelze sestavit plan.")
-    telegram(zprava2)
-
-
-
-# ============================================================
 # TELEGRAM PRIKAZY - zpetna komunikace
 # ============================================================
 
@@ -1049,37 +801,6 @@ def main():
         commitnout_historii()
         print("\nHotovo (manual)")
         return
-
-    # Nocni report jednou denne o 00:10-00:19 (00:00 beh jeste nema vsechny zaznamy)
-    if hodina == 0 and 10 <= minuta < 20:
-        dnes_str = now.strftime("%Y-%m-%d")
-        posledni_report = ""
-        try:
-            if os.path.exists(REPORT_SOUBOR):
-                posledni_report = json.load(open(REPORT_SOUBOR)).get("datum", "")
-        except:
-            pass
-        if posledni_report != dnes_str:
-            nocni_report(historie, ceny, pocasi)
-            json.dump({"datum": dnes_str}, open(REPORT_SOUBOR, "w"))
-            subprocess.run(["git", "add", REPORT_SOUBOR], capture_output=True)
-        else:
-            print("Nocni report dnes jiz odeslan")
-
-    # Denni plan jednou denne ve 14:00-14:20
-    if hodina == 14 and minuta < 20:
-        dnes_str = now.strftime("%Y-%m-%d")
-        plan_soubor = "last_daily_plan.json"
-        posledni = ""
-        try:
-            if os.path.exists(plan_soubor):
-                posledni = json.load(open(plan_soubor)).get("datum", "")
-        except:
-            pass
-        if posledni != dnes_str:
-            denni_plan(ceny, pocasi)
-            json.dump({"datum": dnes_str}, open(plan_soubor, "w"))
-            subprocess.run(["git", "add", plan_soubor], capture_output=True)
 
     predchozi_portal = nacist_aktualni_mod(session)
     predchozi_agent = nacist_aktualni_mod_ze_souboru()
